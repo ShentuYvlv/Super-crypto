@@ -1,0 +1,15 @@
+binance:
+  base_url: https://fapi.binance.com
+  recv_window_ms: 5000
+coinglass:
+  enabled: true
+  base_url: https://open-api-v4.coinglass.com
+  cache_minutes:
+    tickers: 15
+    futures_flow: 15
+    spot_flow: 30
+    coin_info: 360
+etherscan:
+  enabled: false
+  base_url: https://api.etherscan.io/v2/api
+

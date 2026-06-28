@@ -1,0 +1,29 @@
+name: base_market_data
+symbols:
+  - MMTUSDT
+  - TUTUSDT
+  - WCTUSDT
+  - HEMIUSDT
+  - PROMPTUSDT
+timeframes:
+  - 1m
+  - 5m
+  - 15m
+  - 1h
+history_days:
+  1m: 7
+  5m: 21
+  15m: 45
+  1h: 180
+market_snapshot_interval_sec: 60
+storage:
+  raw_dir: data/raw
+  processed_dir: data/processed
+quality:
+  max_gap_minutes:
+    1m: 3
+    5m: 15
+    15m: 45
+    1h: 180
+  timezone: UTC
+  require_monotonic_timestamps: true

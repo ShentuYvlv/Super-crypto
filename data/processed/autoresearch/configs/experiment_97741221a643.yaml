@@ -1,0 +1,30 @@
+name: experiment_v4a_autoresearch
+strategy_config: configs/strategy_v4a.yaml
+backtest_config: configs/backtest.yaml
+scores_config: configs/scores.yaml
+engine: event_driven
+parameter_grid:
+  first_sell_pressure_threshold:
+  - -0.02
+  - -0.015
+  - -0.01
+  - -0.005
+  support_break_threshold:
+  - 0.001
+  - 0.002
+  - 0.003
+  - 0.005
+  - 0.008
+  trailing_stop_pct:
+  - 0.015
+  - 0.02
+  - 0.025
+  stop_loss_pct:
+  - 0.012
+  - 0.015
+  - 0.018
+minimum_trade_count: 20
+autoresearch:
+  base_config: configs/experiment_v4a.yaml
+  hypothesis: Increase trade count by widening support-break threshold search.
+  notes: Increase trade count by widening support-break threshold search.

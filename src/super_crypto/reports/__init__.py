@@ -1,0 +1,2 @@
+"""Report generation and serving."""
+

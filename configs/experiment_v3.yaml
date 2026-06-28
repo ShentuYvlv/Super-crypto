@@ -1,0 +1,10 @@
+name: experiment_v3
+strategy_config: configs/strategy_v3.yaml
+backtest_config: configs/backtest.yaml
+scores_config: configs/scores.yaml
+engine: event_driven
+parameter_grid:
+  trailing_stop_pct: [0.02, 0.03, 0.04]
+  stop_loss_pct: [0.015, 0.02, 0.025]
+minimum_trade_count: 20
+

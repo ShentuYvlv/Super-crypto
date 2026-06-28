@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-canvas text-text font-sans antialiased;
+}
+
+* {
+  scrollbar-color: #2b3139 #0b0e11;
+}
+
+.panel {
+  @apply rounded-lg border border-border bg-surface shadow-panel;
+}
+
+.metric-value {
+  @apply font-mono text-3xl font-semibold text-text;
+}
+
+.mono-hash {
+  @apply font-mono text-xs text-muted;
+}
+

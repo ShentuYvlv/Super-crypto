@@ -1,0 +1,12 @@
+name: experiment_v4b
+strategy_config: configs/strategy_v4b.yaml
+backtest_config: configs/backtest.yaml
+scores_config: configs/scores.yaml
+engine: event_driven
+parameter_grid:
+  support_break_threshold: [0.008, 0.01, 0.012]
+  confirmation_bars: [1, 2, 3]
+  trailing_stop_pct: [0.018, 0.02, 0.022]
+  stop_loss_pct: [0.015, 0.018, 0.02]
+minimum_trade_count: 20
+

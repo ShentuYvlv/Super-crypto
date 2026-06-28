@@ -1,0 +1,16 @@
+symbols:
+  - MMTUSDT
+  - TUTUSDT
+  - WCTUSDT
+  - HEMIUSDT
+  - PROMPTUSDT
+poll_interval_sec: 60
+strategy_configs:
+  - configs/strategy_v4a.yaml
+  - configs/strategy_v4b.yaml
+scores_config: configs/scores.yaml
+enrichment_config: configs/enrichment.yaml
+webhooks:
+  discord: ${DISCORD_WEBHOOK_URL}
+  telegram: ${TELEGRAM_WEBHOOK_URL}
+dedupe_window_minutes: 120

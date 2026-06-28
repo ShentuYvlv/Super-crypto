@@ -1,0 +1,12 @@
+strategy: V4B
+timeframe: 1h
+lookback_bars: 24
+support_window: 8
+peak_window: 16
+first_sell_pressure_threshold: -0.015
+support_break_threshold: 0.01
+confirmation_bars: 2
+trailing_stop_pct: 0.02
+stop_loss_pct: 0.018
+max_hold_bars: 12
+

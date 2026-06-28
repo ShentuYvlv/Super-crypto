@@ -1,0 +1,9 @@
+forbidden:
+  - configs/splits.yaml
+  - configs/backtest.yaml
+  - src/super_crypto/backtest/execution_costs.py
+  - src/super_crypto/validation/leakage_checks.py
+  - src/super_crypto/validation/splits.py
+  - data/raw/
+  - data/processed/holdout/
+

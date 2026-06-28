@@ -1,0 +1,11 @@
+max_validation_runs_per_loop: 3
+history_window: 20
+allowed_config_files:
+  - configs/strategy_v3.yaml
+  - configs/strategy_v4a.yaml
+  - configs/strategy_v4b.yaml
+  - configs/experiment_v3.yaml
+  - configs/experiment_v4a.yaml
+  - configs/experiment_v4b.yaml
+protected_files: configs/protected_files.yaml
+

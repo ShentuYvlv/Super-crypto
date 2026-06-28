@@ -1,0 +1,43 @@
+name: v4a_research_pipeline
+data_config: configs/data.yaml
+splits_config: configs/splits.yaml
+cycle_config: configs/cycle.yaml
+scores_config: configs/scores.yaml
+enrichment_config: configs/enrichment.yaml
+experiment_config: configs/experiment_v4a.yaml
+stages:
+  ingest:
+    enabled: true
+    skip_if_fresh: true
+    freshness_hours: 6
+  build_splits:
+    enabled: true
+    skip_if_exists: true
+  detect_cycles:
+    enabled: true
+    rebuild: false
+  score_symbols:
+    enabled: true
+    point_in_time: true
+  enrich:
+    enabled: true
+    candidate_only: true
+    skip_if_fresh: true
+    freshness_minutes: 15
+  run_experiment:
+    enabled: true
+    engine: event_driven
+    split: train_validation
+  report:
+    enabled: true
+    formats:
+      - markdown
+      - html
+guards:
+  forbid_holdout_without_final: true
+  forbid_agent_holdout_access: true
+  require_clean_git: false
+  require_config_hash: true
+  require_split_hash: true
+  require_data_snapshot_hash: true
+
