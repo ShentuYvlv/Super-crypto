@@ -12,12 +12,12 @@ export default function DataQualityPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-4xl font-semibold">Data Quality</h2>
-        <p className="mt-2 text-sm text-muted">Missing, stale, blocked, and cache health are surfaced here on purpose.</p>
+        <h2 className="text-4xl font-semibold">数据质量</h2>
+        <p className="mt-2 text-sm text-muted">这里集中展示缺失、过期、阻塞和缓存健康状态。</p>
       </div>
       <Card className="p-5">
         {data.length === 0 ? (
-          <EmptyState title="No data quality snapshot" description="当前没有生成 source health 数据。" />
+          <EmptyState title="暂无数据质量快照" description="当前没有生成数据源健康数据。" />
         ) : (
           <DataQualityTable data={data} />
         )}

@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { TradeTable } from "@/components/tables/TradeTable";
 import { Card } from "@/components/ui/card";
 import { useApi } from "@/lib/api";
+import { displayStatus } from "@/lib/display";
 import type { Trade, TradeDetail } from "@/types/api";
 
 const EMPTY_TRADE: TradeDetail = {
@@ -52,12 +53,12 @@ function TradesContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-4xl font-semibold">Trades</h2>
-        <p className="mt-2 text-sm text-muted">Every net return shown here is after fee, slippage, and funding.</p>
+        <h2 className="text-4xl font-semibold">交易</h2>
+        <p className="mt-2 text-sm text-muted">这里展示的净收益均已扣除手续费、滑点和资金费。</p>
       </div>
       <Card className="p-5">
         {trades.data.length === 0 ? (
-          <EmptyState title="No trade record" description="当前没有 backtest / paper trade 记录。" />
+          <EmptyState title="暂无交易记录" description="当前没有回测或模拟交易记录。" />
         ) : (
           <TradeTable data={trades.data} onRowClick={(row) => router.push(`/trades?trade=${encodeURIComponent(row.trade_id)}`)} />
         )}
@@ -66,37 +67,37 @@ function TradesContent() {
         <>
           <div className="grid gap-4 lg:grid-cols-4">
             <Card className="p-4">
-              <p className="text-sm text-muted">Source</p>
-              <p className="mt-3 text-2xl font-semibold">{detail.data.source}</p>
+              <p className="text-sm text-muted">来源</p>
+              <p className="mt-3 text-2xl font-semibold">{displayStatus(detail.data.source)}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-sm text-muted">Net Return</p>
+              <p className="text-sm text-muted">净收益</p>
               <p className={`mt-3 text-2xl font-semibold ${detail.data.net_return >= 0 ? "text-positive" : "text-negative"}`}>
                 {(detail.data.net_return * 100).toFixed(1)}%
               </p>
             </Card>
             <Card className="p-4">
-              <p className="text-sm text-muted">Holding</p>
-              <p className="mt-3 text-2xl font-semibold">{Math.round(detail.data.holding_minutes)}m</p>
+              <p className="text-sm text-muted">持仓时长</p>
+              <p className="mt-3 text-2xl font-semibold">{Math.round(detail.data.holding_minutes)} 分钟</p>
             </Card>
             <Card className="p-4">
-              <p className="text-sm text-muted">Top 5 Trade</p>
-              <p className="mt-3 text-2xl font-semibold">{detail.data.is_top5_trade ? "Yes" : "No"}</p>
+              <p className="text-sm text-muted">前 5 笔交易</p>
+              <p className="mt-3 text-2xl font-semibold">{detail.data.is_top5_trade ? "是" : "否"}</p>
             </Card>
           </div>
           <Card className="p-5">
-            <h3 className="mb-4 text-2xl font-semibold">Cost Breakdown</h3>
+            <h3 className="mb-4 text-2xl font-semibold">成本拆分</h3>
             <div className="grid gap-4 md:grid-cols-4 text-sm">
-              <div className="rounded-lg bg-[#11161d] p-4">Gross: {(detail.data.gross_return * 100).toFixed(1)}%</div>
-              <div className="rounded-lg bg-[#11161d] p-4">Fee: {(detail.data.fee_cost * 100).toFixed(1)}%</div>
-              <div className="rounded-lg bg-[#11161d] p-4">Slippage: {(detail.data.slippage_cost * 100).toFixed(1)}%</div>
-              <div className="rounded-lg bg-[#11161d] p-4">Funding: {(detail.data.funding_cost * 100).toFixed(1)}%</div>
+              <div className="rounded-lg bg-[#11161d] p-4">毛收益： {(detail.data.gross_return * 100).toFixed(1)}%</div>
+              <div className="rounded-lg bg-[#11161d] p-4">手续费： {(detail.data.fee_cost * 100).toFixed(1)}%</div>
+              <div className="rounded-lg bg-[#11161d] p-4">滑点： {(detail.data.slippage_cost * 100).toFixed(1)}%</div>
+              <div className="rounded-lg bg-[#11161d] p-4">资金费： {(detail.data.funding_cost * 100).toFixed(1)}%</div>
             </div>
           </Card>
           <Card className="p-5">
-            <h3 className="mb-4 text-2xl font-semibold">Trade Kline Context</h3>
+            <h3 className="mb-4 text-2xl font-semibold">交易 K 线上下文</h3>
             {detail.data.kline_context.length === 0 ? (
-              <EmptyState title="No kline context" description="该交易缺少本地 K 线窗口。" />
+              <EmptyState title="暂无 K 线上下文" description="该交易缺少本地 K 线窗口。" />
             ) : (
               <KlinePanel rows={detail.data.kline_context as Array<{ open_time?: string; open: number; high: number; low: number; close: number }>} />
             )}
@@ -109,7 +110,7 @@ function TradesContent() {
 
 export default function TradesPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-muted">Loading trades...</div>}>
+    <Suspense fallback={<div className="text-sm text-muted">正在加载交易...</div>}>
       <TradesContent />
     </Suspense>
   );

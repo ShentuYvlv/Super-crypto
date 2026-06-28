@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { displayStatus } from "@/lib/display";
 
 export function StatusBadge({ value }: { value: string }) {
   const normalized = value.toLowerCase();
@@ -12,5 +13,5 @@ export function StatusBadge({ value }: { value: string }) {
           : normalized.includes("local")
             ? "info"
             : "accent";
-  return <Badge tone={tone}>{value}</Badge>;
+  return <Badge tone={tone}>{displayStatus(value)}</Badge>;
 }

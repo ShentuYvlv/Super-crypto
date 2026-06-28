@@ -5,39 +5,43 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { DataTable } from "@/components/tables/DataTable";
 import { SignalReasonTags } from "@/components/SignalReasonTags";
 import { StatusBadge } from "@/components/StatusBadge";
+import { displayText } from "@/lib/display";
 import type { Signal } from "@/types/api";
 
 const columnHelper = createColumnHelper<Signal>();
 
 const columns = [
   columnHelper.accessor("signal_time", {
-    header: "Signal Time",
+    header: "信号时间",
     cell: ({ getValue }) => new Date(getValue()).toLocaleString()
   }),
-  columnHelper.accessor("symbol", { header: "Symbol" }),
-  columnHelper.accessor("strategy", { header: "Strategy" }),
-  columnHelper.accessor("entry_reference", { header: "Entry" }),
+  columnHelper.accessor("symbol", { header: "标的" }),
+  columnHelper.accessor("strategy", { header: "策略" }),
+  columnHelper.accessor("entry_reference", {
+    header: "入场",
+    cell: ({ getValue }) => displayText(getValue())
+  }),
   columnHelper.accessor("confidence", {
-    header: "Confidence",
+    header: "置信度",
     cell: ({ getValue }) => `${(getValue() * 100).toFixed(0)}%`
   }),
   columnHelper.accessor("manipulation_score_bucket", {
-    header: "Bucket",
+    header: "分组",
     cell: ({ getValue }) => <StatusBadge value={getValue()} />
   }),
   columnHelper.accessor("reason", {
-    header: "Reason",
+    header: "原因",
     cell: ({ getValue }) => <SignalReasonTags reasons={getValue()} />
   }),
   columnHelper.accessor("status", {
-    header: "Status",
+    header: "状态",
     cell: ({ getValue }) => <StatusBadge value={getValue()} />
   }),
   columnHelper.accessor("orderbook_slippage_bps", {
-    header: "Slip",
+    header: "滑点",
     cell: ({ getValue }) => {
       const value = getValue();
-      return value == null ? "-" : `${value.toFixed(1)}bps`;
+      return value == null ? "-" : `${value.toFixed(1)} 基点`;
     }
   })
 ];

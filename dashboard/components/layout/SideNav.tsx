@@ -6,15 +6,15 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { href: "/", label: "Overview" },
-  { href: "/experiments", label: "Experiments" },
-  { href: "/backtest", label: "Backtest" },
-  { href: "/signals", label: "Signals" },
-  { href: "/trades", label: "Trades" },
-  { href: "/symbols", label: "Symbols" },
-  { href: "/data-quality", label: "Data Quality" },
-  { href: "/orderbook", label: "Orderbook" },
-  { href: "/reports", label: "Reports" }
+  { href: "/", label: "总览" },
+  { href: "/experiments", label: "实验" },
+  { href: "/backtest", label: "回测" },
+  { href: "/signals", label: "信号" },
+  { href: "/trades", label: "交易" },
+  { href: "/symbols", label: "标的" },
+  { href: "/data-quality", label: "数据质量" },
+  { href: "/orderbook", label: "盘口" },
+  { href: "/reports", label: "报告" }
 ];
 
 export function SideNav() {
@@ -23,7 +23,7 @@ export function SideNav() {
     <aside className="flex w-full flex-col border-b border-border bg-[#0e1218] px-4 py-6 lg:min-h-screen lg:w-64 lg:border-b-0 lg:border-r">
       <div className="mb-8">
         <h1 className="text-3xl font-semibold text-accent">Super Crypto</h1>
-        <p className="text-sm text-muted">Quant Research Terminal</p>
+        <p className="text-sm text-muted">量化研究终端</p>
       </div>
       <nav className="grid gap-2 md:grid-cols-3 lg:grid-cols-1">
         {items.map((item) => {
@@ -45,9 +45,9 @@ export function SideNav() {
         })}
       </nav>
       <div className="mt-auto rounded-lg border border-border bg-surface p-4">
-        <p className="text-sm font-semibold text-accent">Holdout Guard</p>
+        <p className="text-sm font-semibold text-accent">留出集保护</p>
         <p className="mt-2 text-sm text-muted">
-          Final holdout is read-only. No run action exists in dashboard.
+          最终留出集只读；看板不提供执行入口。
         </p>
       </div>
     </aside>

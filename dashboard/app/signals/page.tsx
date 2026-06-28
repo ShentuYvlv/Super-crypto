@@ -10,6 +10,7 @@ import { SignalTable } from "@/components/tables/SignalTable";
 import { TradeTable } from "@/components/tables/TradeTable";
 import { Card } from "@/components/ui/card";
 import { useApi } from "@/lib/api";
+import { displayField, displayStatus, localizeValue } from "@/lib/display";
 import type { Signal, SignalDetail } from "@/types/api";
 
 const EMPTY_DETAIL: SignalDetail = {
@@ -54,12 +55,12 @@ function SignalsContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-4xl font-semibold">Signals</h2>
-        <p className="mt-2 text-sm text-muted">Confidence is a structured score, not a profit promise.</p>
+        <h2 className="text-4xl font-semibold">信号</h2>
+        <p className="mt-2 text-sm text-muted">置信度是结构化评分，不是收益承诺。</p>
       </div>
       <Card className="p-5">
         {list.data.length === 0 ? (
-          <EmptyState title="No signal yet" description="当前没有落库信号，这说明系统没有强行凑信号。" />
+          <EmptyState title="暂无信号" description="当前没有落库信号，这说明系统没有强行凑信号。" />
         ) : (
           <SignalTable data={list.data} onRowClick={(row) => router.push(`/signals?signal=${encodeURIComponent(row.signal_id)}`)} />
         )}
@@ -68,53 +69,53 @@ function SignalsContent() {
         <>
           <div className="grid gap-4 lg:grid-cols-4">
             <Card className="p-4">
-              <p className="text-sm text-muted">Symbol</p>
+              <p className="text-sm text-muted">标的</p>
               <p className="mt-3 text-2xl font-semibold">{detail.data.symbol}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-sm text-muted">Strategy</p>
-              <p className="mt-3 text-2xl font-semibold text-negative">{detail.data.strategy} SHORT</p>
+              <p className="text-sm text-muted">策略</p>
+              <p className="mt-3 text-2xl font-semibold text-negative">{detail.data.strategy} 做空</p>
             </Card>
             <Card className="p-4">
-              <p className="text-sm text-muted">Confidence</p>
+              <p className="text-sm text-muted">置信度</p>
               <p className="mt-3 text-2xl font-semibold">{(detail.data.confidence * 100).toFixed(0)}%</p>
             </Card>
             <Card className="p-4">
-              <p className="text-sm text-muted">Orderbook Slip</p>
+              <p className="text-sm text-muted">盘口滑点</p>
               <p className="mt-3 text-2xl font-semibold">
-                {detail.data.orderbook_slippage_bps == null ? "-" : `${detail.data.orderbook_slippage_bps.toFixed(1)}bps`}
+                {detail.data.orderbook_slippage_bps == null ? "-" : `${detail.data.orderbook_slippage_bps.toFixed(1)} 基点`}
               </p>
             </Card>
           </div>
           <div className="grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
             <Card className="p-5">
-              <h3 className="mb-4 text-2xl font-semibold">Kline Context</h3>
+              <h3 className="mb-4 text-2xl font-semibold">K 线上下文</h3>
               {detail.data.kline_context.length === 0 ? (
-                <EmptyState title="No kline context" description="该信号缺少本地 K 线上下文。" />
+                <EmptyState title="暂无 K 线上下文" description="该信号缺少本地 K 线上下文。" />
               ) : (
                 <KlinePanel rows={detail.data.kline_context as Array<{ open_time?: string; open: number; high: number; low: number; close: number }>} />
               )}
             </Card>
             <Card className="p-5">
-              <h3 className="mb-4 text-2xl font-semibold">Reason & Payload</h3>
+              <h3 className="mb-4 text-2xl font-semibold">原因与载荷</h3>
               <SignalReasonTags reasons={detail.data.reason} />
               <div className="mt-4 space-y-2 text-sm text-muted">
-                <p>Data quality: {detail.data.data_quality}</p>
-                <p>Missing: {detail.data.missing_fields.length ? detail.data.missing_fields.join(", ") : "-"}</p>
-                <p>Stale: {detail.data.stale_fields.length ? detail.data.stale_fields.join(", ") : "-"}</p>
+                <p>数据质量： {displayStatus(detail.data.data_quality)}</p>
+                <p>缺失： {detail.data.missing_fields.length ? detail.data.missing_fields.map(displayField).join(", ") : "-"}</p>
+                <p>过期： {detail.data.stale_fields.length ? detail.data.stale_fields.map(displayField).join(", ") : "-"}</p>
                 <p>
-                  Spread: {detail.data.orderbook_snapshot.spread_bps == null ? "-" : `${detail.data.orderbook_snapshot.spread_bps.toFixed(2)}bps`}
+                  价差： {detail.data.orderbook_snapshot.spread_bps == null ? "-" : `${detail.data.orderbook_snapshot.spread_bps.toFixed(2)} 基点`}
                 </p>
               </div>
               <pre className="mt-4 overflow-x-auto rounded-lg bg-[#11161d] p-4 text-xs text-muted">
-                {JSON.stringify(detail.data.webhook_payload, null, 2)}
+                {JSON.stringify(localizeValue(detail.data.webhook_payload), null, 2)}
               </pre>
             </Card>
           </div>
           <Card className="p-5">
-            <h3 className="mb-4 text-2xl font-semibold">Related Trades</h3>
+            <h3 className="mb-4 text-2xl font-semibold">关联交易</h3>
             {detail.data.backtest_trades.length === 0 ? (
-              <EmptyState title="No backtest trade" description="这个信号没有对应回测成交，页面明确展示为空。" />
+              <EmptyState title="暂无回测交易" description="这个信号没有对应回测成交，页面明确展示为空。" />
             ) : (
               <TradeTable data={detail.data.backtest_trades} />
             )}
@@ -127,7 +128,7 @@ function SignalsContent() {
 
 export default function SignalsPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-muted">Loading signals...</div>}>
+    <Suspense fallback={<div className="text-sm text-muted">正在加载信号...</div>}>
       <SignalsContent />
     </Suspense>
   );

@@ -58,12 +58,12 @@ function SymbolsContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-4xl font-semibold">Symbols</h2>
-        <p className="mt-2 text-sm text-muted">Point-in-time scoreboards for manipulation frequency and tradability.</p>
+        <h2 className="text-4xl font-semibold">标的</h2>
+        <p className="mt-2 text-sm text-muted">按时点展示操纵频率和可交易性评分。</p>
       </div>
       <Card className="p-5">
         {list.data.length === 0 ? (
-          <EmptyState title="No symbol universe" description="当前没有本地 score / ohlcv 数据。" />
+          <EmptyState title="暂无标的池" description="当前没有本地评分或 K 线数据。" />
         ) : (
           <SymbolScoreTable data={list.data} onRowClick={(row) => router.push(`/symbols?symbol=${encodeURIComponent(row.symbol)}`)} />
         )}
@@ -72,52 +72,52 @@ function SymbolsContent() {
         <>
           <div className="grid gap-4 lg:grid-cols-4">
             <Card className="p-4">
-              <p className="text-sm text-muted">Score</p>
+              <p className="text-sm text-muted">评分</p>
               <p className="mt-3 text-2xl font-semibold">{detail.data.manipulation_score.toFixed(1)}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-sm text-muted">Cycles</p>
+              <p className="text-sm text-muted">周期数</p>
               <p className="mt-3 text-2xl font-semibold">{detail.data.cycle_count}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-sm text-muted">Funding</p>
+              <p className="text-sm text-muted">资金费</p>
               <p className="mt-3 text-2xl font-semibold">{(detail.data.latest_funding * 100).toFixed(2)}%</p>
             </Card>
             <Card className="p-4">
-              <p className="text-sm text-muted">OI 24h</p>
+              <p className="text-sm text-muted">持仓量 24 小时</p>
               <p className="mt-3 text-2xl font-semibold">{(detail.data.oi_change_24h * 100).toFixed(1)}%</p>
             </Card>
           </div>
           <Card className="p-5">
-            <h3 className="mb-4 text-2xl font-semibold">Symbol Detail</h3>
+            <h3 className="mb-4 text-2xl font-semibold">标的详情</h3>
             {detail.data.klines.length === 0 ? (
-              <EmptyState title="No symbol kline" description="当前币种没有本地 K 线，无法展示 detail。" />
+              <EmptyState title="暂无标的 K 线" description="当前币种没有本地 K 线，无法展示详情。" />
             ) : (
               <KlinePanel rows={detail.data.klines as Array<{ open_time?: string; open: number; high: number; low: number; close: number }>} />
             )}
           </Card>
           <div className="grid gap-6 xl:grid-cols-2">
             <Card className="p-5">
-              <h3 className="mb-4 text-2xl font-semibold">Orderbook Depth</h3>
+              <h3 className="mb-4 text-2xl font-semibold">盘口深度</h3>
               {detail.data.orderbook_depth.length === 0 ? (
-                <EmptyState title="No orderbook snapshot" description="没有盘口快照时，信号可信度会下降。" />
+                <EmptyState title="暂无盘口快照" description="没有盘口快照时，信号可信度会下降。" />
               ) : (
                 <OrderbookDepthPanel rows={detail.data.orderbook_depth} />
               )}
             </Card>
             <Card className="p-5">
-              <h3 className="mb-4 text-2xl font-semibold">Slippage Curve</h3>
+              <h3 className="mb-4 text-2xl font-semibold">滑点曲线</h3>
               {detail.data.latest_orderbook.slippage_bps_sell ? (
                 <SlippageCurve slippage={detail.data.latest_orderbook.slippage_bps_sell} />
               ) : (
-                <EmptyState title="No slippage curve" description="当前币种没有可用的滑点估算。" />
+                <EmptyState title="暂无滑点曲线" description="当前币种没有可用的滑点估算。" />
               )}
             </Card>
           </div>
           <Card className="p-5">
-            <h3 className="mb-4 text-2xl font-semibold">Trades</h3>
+            <h3 className="mb-4 text-2xl font-semibold">交易</h3>
             {detail.data.trades.length === 0 ? (
-              <EmptyState title="No historical trades" description="当前币种没有回测交易记录。" />
+              <EmptyState title="暂无历史交易" description="当前币种没有回测交易记录。" />
             ) : (
               <TradeTable data={detail.data.trades} />
             )}
@@ -130,7 +130,7 @@ function SymbolsContent() {
 
 export default function SymbolsPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-muted">Loading symbols...</div>}>
+    <Suspense fallback={<div className="text-sm text-muted">正在加载标的...</div>}>
       <SymbolsContent />
     </Suspense>
   );

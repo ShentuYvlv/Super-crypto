@@ -10,6 +10,7 @@ import { MetricCard } from "@/components/MetricCard";
 import { SignalReasonTags } from "@/components/SignalReasonTags";
 import { Card } from "@/components/ui/card";
 import { useApi } from "@/lib/api";
+import { displayStatus, displayText } from "@/lib/display";
 import type { OverviewPayload, SymbolSummary } from "@/types/api";
 
 const EMPTY_OVERVIEW: OverviewPayload = {
@@ -37,48 +38,48 @@ export default function OverviewPage() {
   const symbols = useApi<SymbolSummary[]>("/api/symbols", []);
 
   if (overview.error && overview.data.latest_pipeline_run == null) {
-    return <ErrorState title="Overview API 不可用" description="请先运行 report serve 或检查后端接口。" />;
+    return <ErrorState title="总览接口不可用" description="请先启动报告服务或检查后端接口。" />;
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-4xl font-semibold">Overview</h2>
+      <h2 className="text-4xl font-semibold">总览</h2>
       <div className="grid gap-4 xl:grid-cols-6">
-        <MetricCard label="Today Signals" value={String(overview.data.today_signal_count)} sublabel="current data window" badge="Live" />
-        <MetricCard label="Tracked Symbols" value={String(overview.data.active_monitored_symbols)} sublabel="signal-active universe" badge="Pool" />
+        <MetricCard label="今日信号" value={String(overview.data.today_signal_count)} sublabel="当前数据窗口" badge="实时" />
+        <MetricCard label="跟踪标的" value={String(overview.data.active_monitored_symbols)} sublabel="信号活跃池" badge="标的池" />
         <MetricCard
-          label="Paper PnL 7D"
+          label="模拟 7 日盈亏"
           value={`${(overview.data.paper_pnl_7d * 100).toFixed(1)}%`}
-          sublabel="paper trades only"
-          badge="Paper"
+          sublabel="仅模拟交易"
+          badge="模拟"
         />
         <MetricCard
-          label="Validation Best"
+          label="验证集最佳"
           value={`${(overview.data.validation_best_net_return * 100).toFixed(1)}%`}
-          sublabel="latest experiment"
-          badge="Event"
+          sublabel="最新实验"
+          badge="事件驱动"
         />
-        <MetricCard label="Max Drawdown" value={`${(overview.data.max_drawdown * 100).toFixed(1)}%`} sublabel="event-driven" badge="Risk" />
+        <MetricCard label="最大回撤" value={`${(overview.data.max_drawdown * 100).toFixed(1)}%`} sublabel="事件驱动" badge="风险" />
         <MetricCard
-          label="Data Health"
+          label="数据健康度"
           value={`${(overview.data.data_health_score * 100).toFixed(0)}%`}
-          sublabel="pipeline confidence"
-          badge={overview.data.data_warnings.length ? "Warn" : "Healthy"}
+          sublabel="流水线可信度"
+          badge={overview.data.data_warnings.length ? "告警" : "健康"}
         />
       </div>
       <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr_.8fr]">
         <Card className="p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-2xl font-semibold">Candidate Scoreboard</h3>
-              <p className="text-sm text-muted">Point-in-time cutoff, score bucket, derivatives, and latest signal.</p>
+              <h3 className="text-2xl font-semibold">候选标的评分</h3>
+              <p className="text-sm text-muted">按时点截断展示评分分组、衍生品数据和最新信号。</p>
             </div>
             <Link href="/symbols" prefetch={false} className="text-sm text-accent">
-              View all
+              查看全部
             </Link>
           </div>
           {symbols.data.length === 0 ? (
-            <EmptyState title="No symbol snapshot" description="先跑 pipeline 或 scanner，页面会自动读取最新 parquet / SQLite 数据。" />
+            <EmptyState title="暂无标的快照" description="先跑流水线或扫描器，页面会自动读取最新 Parquet / SQLite 数据。" />
           ) : (
             <div className="space-y-3">
               {symbols.data.slice(0, 8).map((row) => (
@@ -96,34 +97,34 @@ export default function OverviewPage() {
                   <span className={row.oi_change_24h >= 0 ? "text-positive" : "text-negative"}>
                     {(row.oi_change_24h * 100).toFixed(1)}%
                   </span>
-                  <span className="truncate text-muted">{row.latest_signal_label}</span>
+                  <span className="truncate text-muted">{displayText(row.latest_signal_label)}</span>
                 </Link>
               ))}
             </div>
           )}
         </Card>
         <Card className="p-5">
-          <h3 className="text-2xl font-semibold">Performance Snapshot</h3>
-          <p className="mt-1 text-sm text-muted">Holdout is never triggered here. Event-driven metrics are the only primary metrics.</p>
+          <h3 className="text-2xl font-semibold">表现快照</h3>
+          <p className="mt-1 text-sm text-muted">这里不会触发留出集；主指标只采用事件驱动回测。</p>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             {overview.data.performance_snapshot.split_comparison.map((row) => (
               <Card key={`${row.split}-${row.status}`} className="bg-[#11161d] p-4">
-                <p className="text-sm text-muted">{row.split}</p>
-                <p className="mt-3 text-xl font-semibold">{row.status}</p>
+                <p className="text-sm text-muted">{displayText(row.split)}</p>
+                <p className="mt-3 text-xl font-semibold">{displayStatus(row.status)}</p>
                 <p className="mt-2 text-positive">{(row.net_return * 100).toFixed(1)}%</p>
-                <p className="text-sm text-muted">trade count {row.trade_count}</p>
+                <p className="text-sm text-muted">交易数 {row.trade_count}</p>
               </Card>
             ))}
             {overview.data.performance_snapshot.split_comparison.length === 0 ? (
-              <EmptyState title="No experiment summary" description="最新实验详情还没生成，先跑 pipeline。" />
+              <EmptyState title="暂无实验摘要" description="最新实验详情还没生成，先跑流水线。" />
             ) : null}
           </div>
         </Card>
         <Card className="p-5">
-          <h3 className="text-2xl font-semibold">Latest Alerts</h3>
+          <h3 className="text-2xl font-semibold">最新告警</h3>
           <div className="mt-4 space-y-3">
             {overview.data.latest_alerts.length === 0 ? (
-              <EmptyState title="No live signal" description="当前样本没有触发 V4A / V4B 信号，这比伪造信号更可信。" />
+              <EmptyState title="暂无实时信号" description="当前样本没有触发 V4A / V4B 信号，这比伪造信号更可信。" />
             ) : (
               overview.data.latest_alerts.map((signal) => (
                 <Link
@@ -135,7 +136,7 @@ export default function OverviewPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold">{signal.symbol}</p>
-                      <p className="mt-1 text-negative">{signal.strategy} SHORT</p>
+                      <p className="mt-1 text-negative">{signal.strategy} 做空</p>
                     </div>
                     <p className="text-sm text-muted">{(signal.confidence * 100).toFixed(0)}%</p>
                   </div>
@@ -150,33 +151,33 @@ export default function OverviewPage() {
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
         <Card className="p-5">
-          <h3 className="text-2xl font-semibold">Equity Curve</h3>
+          <h3 className="text-2xl font-semibold">权益曲线</h3>
           {overview.data.performance_snapshot.equity_curve.length === 0 ? (
-            <EmptyState title="No equity curve" description="没有交易时不展示伪造收益曲线。" />
+            <EmptyState title="暂无权益曲线" description="没有交易时不展示伪造收益曲线。" />
           ) : (
             <EquityChart points={overview.data.performance_snapshot.equity_curve} />
           )}
         </Card>
         <Card className="p-5">
-          <h3 className="text-2xl font-semibold">Drawdown Curve</h3>
+          <h3 className="text-2xl font-semibold">回撤曲线</h3>
           {overview.data.performance_snapshot.drawdown_curve.length === 0 ? (
-            <EmptyState title="No drawdown curve" description="当前实验没有成交，回撤图保持空态。" />
+            <EmptyState title="暂无回撤曲线" description="当前实验没有成交，回撤图保持空态。" />
           ) : (
             <DrawdownChart points={overview.data.performance_snapshot.drawdown_curve} />
           )}
         </Card>
       </div>
       <Card className="p-5">
-        <h3 className="text-2xl font-semibold">Data Warnings</h3>
+        <h3 className="text-2xl font-semibold">数据告警</h3>
         {overview.data.data_warnings.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">No critical warning from the latest pipeline run.</p>
+          <p className="mt-3 text-sm text-muted">最新流水线没有关键告警。</p>
         ) : (
           <div className="mt-4 space-y-3">
             {overview.data.data_warnings.map((warning) => (
               <div key={`${warning.source_name}-${warning.detail}`} className="rounded-lg border border-border bg-[#11161d] px-4 py-3 text-sm">
-                <p className="font-medium">{warning.source_name}</p>
+                <p className="font-medium">{displayText(warning.source_name)}</p>
                 <p className="mt-1 text-muted">
-                  {warning.status} · {warning.detail}
+                  {displayStatus(warning.status)} · {displayText(warning.detail)}
                 </p>
               </div>
             ))}

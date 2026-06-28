@@ -34,15 +34,15 @@ export function TopStatusBar() {
     <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
       <div>
         <p className="text-sm text-muted">
-          Read-only research terminal · event-driven metrics are primary · no holdout execution entry
+          只读研究终端 · 事件驱动指标为主 · 不提供留出集执行入口
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge value={pipeline?.status ?? "no_pipeline"} />
-        <StatusBadge value={scanner?.scanner_status ?? "scanner_idle"} />
-        <StatusBadge value={coinglassStatus?.status ?? "coinglass_unknown"} />
-        <StatusBadge value="local" />
-        <StatusBadge value={pipeline?.git_commit_hash ? `git ${pipeline.git_commit_hash.slice(0, 7)}` : "git unknown"} />
+        <StatusBadge value={pipeline?.status ?? "无流水线"} />
+        <StatusBadge value={scanner?.scanner_status ?? "扫描器空闲"} />
+        <StatusBadge value={coinglassStatus?.status ?? "CoinGlass 未知"} />
+        <StatusBadge value="本地" />
+        <StatusBadge value={pipeline?.git_commit_hash ? `Git ${pipeline.git_commit_hash.slice(0, 7)}` : "Git 未知"} />
       </div>
     </div>
   );

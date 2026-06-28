@@ -5,56 +5,63 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { DataTable } from "@/components/tables/DataTable";
 import { HashBadge } from "@/components/HashBadge";
 import { StatusBadge } from "@/components/StatusBadge";
+import { displayText } from "@/lib/display";
 import type { Experiment } from "@/types/api";
 
 const columnHelper = createColumnHelper<Experiment>();
 
 const columns = [
   columnHelper.accessor("experiment_id", {
-    header: "Experiment",
+    header: "实验",
     cell: ({ getValue }) => <HashBadge value={getValue()} />
   }),
-  columnHelper.accessor("strategy", { header: "Strategy" }),
-  columnHelper.accessor("engine", { header: "Engine" }),
-  columnHelper.accessor("split", { header: "Split" }),
+  columnHelper.accessor("strategy", { header: "策略" }),
+  columnHelper.accessor("engine", {
+    header: "引擎",
+    cell: ({ getValue }) => displayText(getValue())
+  }),
+  columnHelper.accessor("split", {
+    header: "切分",
+    cell: ({ getValue }) => displayText(getValue())
+  }),
   columnHelper.accessor("status", {
-    header: "Status",
+    header: "状态",
     cell: ({ getValue }) => <StatusBadge value={getValue()} />
   }),
   columnHelper.accessor((row) => row.metrics.net_return, {
     id: "net_return",
-    header: "Net Return",
+    header: "净收益",
     cell: ({ getValue }) => `${(getValue() * 100).toFixed(1)}%`
   }),
   columnHelper.accessor((row) => row.metrics.trade_count, {
     id: "trade_count",
-    header: "Trades"
+    header: "交易数"
   }),
   columnHelper.accessor((row) => row.metrics.sharpe, {
     id: "sharpe",
-    header: "Sharpe",
+    header: "夏普",
     cell: ({ getValue }) => getValue().toFixed(2)
   }),
   columnHelper.accessor((row) => row.metrics.max_drawdown, {
     id: "max_drawdown",
-    header: "MDD",
+    header: "最大回撤",
     cell: ({ getValue }) => `${(getValue() * 100).toFixed(1)}%`
   }),
   columnHelper.accessor((row) => row.metrics.win_rate, {
     id: "win_rate",
-    header: "Win Rate",
+    header: "胜率",
     cell: ({ getValue }) => `${(getValue() * 100).toFixed(0)}%`
   }),
   columnHelper.accessor("config_hash", {
-    header: "Config Hash",
+    header: "配置哈希",
     cell: ({ getValue }) => <HashBadge value={getValue()} />
   }),
   columnHelper.accessor("split_hash", {
-    header: "Split Hash",
+    header: "切分哈希",
     cell: ({ getValue }) => <HashBadge value={getValue()} />
   }),
   columnHelper.accessor("data_snapshot_hash", {
-    header: "Snapshot",
+    header: "快照",
     cell: ({ getValue }) => <HashBadge value={getValue()} />
   }),
   columnHelper.accessor("git_commit_hash", {
@@ -62,8 +69,8 @@ const columns = [
     cell: ({ getValue }) => <HashBadge value={getValue()} />
   }),
   columnHelper.accessor("failure_reason", {
-    header: "Risk",
-    cell: ({ getValue, row }) => getValue() ?? (row.original.metrics.trade_count < 20 ? "low_trade_count" : "-")
+    header: "风险",
+    cell: ({ getValue, row }) => displayText(getValue() ?? (row.original.metrics.trade_count < 20 ? "low_trade_count" : "-"))
   })
 ];
 

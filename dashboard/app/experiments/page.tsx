@@ -15,14 +15,14 @@ export default function ExperimentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-4xl font-semibold">Experiments</h2>
+        <h2 className="text-4xl font-semibold">实验</h2>
         <p className="mt-2 text-sm text-muted">
-          Compare hashes, cost pressure, trade count, and rejection reason before trusting any backtest.
+          先比较配置哈希、成本压力、交易数和拒绝原因，再判断回测是否可信。
         </p>
       </div>
       <Card className="p-5">
         {data.length === 0 ? (
-          <EmptyState title="No experiment run" description="先跑 pipeline，实验表会自动读取 SQLite 中的最新结果。" />
+          <EmptyState title="暂无实验运行" description="先跑流水线，实验表会自动读取 SQLite 中的最新结果。" />
         ) : (
           <ExperimentTable
             data={data}

@@ -56,31 +56,31 @@ function OrderbookContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-4xl font-semibold">Orderbook</h2>
-        <p className="mt-2 text-sm text-muted">Depth and slippage are first-class inputs, not report footnotes.</p>
+        <h2 className="text-4xl font-semibold">盘口</h2>
+        <p className="mt-2 text-sm text-muted">深度和滑点是一等输入，不是报告脚注。</p>
       </div>
       <Card className="p-5">
         {list.data.length === 0 ? (
-          <EmptyState title="No symbol list" description="当前没有 symbol / orderbook 数据。" />
+          <EmptyState title="暂无标的列表" description="当前没有标的或盘口数据。" />
         ) : (
           <SymbolScoreTable data={list.data} onRowClick={(row) => router.push(`/orderbook?symbol=${encodeURIComponent(row.symbol)}`)} />
         )}
       </Card>
       <div className="grid gap-6 xl:grid-cols-2">
         <Card className="p-5">
-          <h3 className="mb-4 text-2xl font-semibold">Depth Snapshot</h3>
+          <h3 className="mb-4 text-2xl font-semibold">深度快照</h3>
           {detail.data.orderbook_depth.length === 0 ? (
-            <EmptyState title="No depth snapshot" description="没有盘口快照时，这个页面不会假装有流动性证据。" />
+            <EmptyState title="暂无深度快照" description="没有盘口快照时，这个页面不会假装有流动性证据。" />
           ) : (
             <OrderbookDepthPanel rows={detail.data.orderbook_depth} />
           )}
         </Card>
         <Card className="p-5">
-          <h3 className="mb-4 text-2xl font-semibold">Slippage Curve</h3>
+          <h3 className="mb-4 text-2xl font-semibold">滑点曲线</h3>
           {detail.data.latest_orderbook.slippage_bps_sell ? (
             <SlippageCurve slippage={detail.data.latest_orderbook.slippage_bps_sell} />
           ) : (
-            <EmptyState title="No slippage estimate" description="当前币种没有可用的盘口滑点估算。" />
+            <EmptyState title="暂无滑点估算" description="当前币种没有可用的盘口滑点估算。" />
           )}
         </Card>
       </div>
@@ -90,7 +90,7 @@ function OrderbookContent() {
 
 export default function OrderbookPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-muted">Loading orderbook...</div>}>
+    <Suspense fallback={<div className="text-sm text-muted">正在加载盘口...</div>}>
       <OrderbookContent />
     </Suspense>
   );

@@ -4,43 +4,47 @@ import { createColumnHelper } from "@tanstack/react-table";
 
 import { DataTable } from "@/components/tables/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
+import { displayReason } from "@/lib/display";
 import type { Trade } from "@/types/api";
 
 const columnHelper = createColumnHelper<Trade>();
 
 const columns = [
   columnHelper.accessor("entry_time", {
-    header: "Entry Time",
+    header: "入场时间",
     cell: ({ getValue }) => new Date(getValue()).toLocaleString()
   }),
-  columnHelper.accessor("symbol", { header: "Symbol" }),
+  columnHelper.accessor("symbol", { header: "标的" }),
   columnHelper.accessor("source", {
-    header: "Source",
+    header: "来源",
     cell: ({ getValue }) => <StatusBadge value={getValue()} />
   }),
-  columnHelper.accessor("exit_reason", { header: "Exit" }),
+  columnHelper.accessor("exit_reason", {
+    header: "退出",
+    cell: ({ getValue }) => displayReason(getValue())
+  }),
   columnHelper.accessor("net_return", {
-    header: "Net Return",
+    header: "净收益",
     cell: ({ getValue }) => `${(getValue() * 100).toFixed(1)}%`
   }),
   columnHelper.accessor("fee_cost", {
-    header: "Fee",
+    header: "手续费",
     cell: ({ getValue }) => `${(getValue() * 100).toFixed(1)}%`
   }),
   columnHelper.accessor("slippage_cost", {
-    header: "Slip",
+    header: "滑点",
     cell: ({ getValue }) => `${(getValue() * 100).toFixed(1)}%`
   }),
   columnHelper.accessor("funding_cost", {
-    header: "Funding",
+    header: "资金费",
     cell: ({ getValue }) => `${(getValue() * 100).toFixed(1)}%`
   }),
   columnHelper.accessor("holding_minutes", {
-    header: "Hold",
-    cell: ({ getValue }) => `${Math.round(getValue())}m`
+    header: "持仓",
+    cell: ({ getValue }) => `${Math.round(getValue())} 分钟`
   }),
   columnHelper.accessor("orderbook_snapshot_status", {
-    header: "OB",
+    header: "盘口",
     cell: ({ getValue }) => <StatusBadge value={getValue()} />
   })
 ];
