@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-import pandas as pd
+import json
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 
 from super_crypto.common.paths import DATA_ROOT
@@ -15,25 +17,56 @@ from super_crypto.report_api.loaders import (
     load_symbol_orderbook,
 )
 
-
 router = APIRouter(prefix="/api/symbols", tags=["symbols"])
 
 
-def _build_depth_rows(snapshot: dict | None) -> list[dict]:
-    if not snapshot:
+def _depth_levels(value: Any) -> list[list[float]]:
+    if value is None:
         return []
-    bids = snapshot.get("bids") or []
-    asks = snapshot.get("asks") or []
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+    if hasattr(value, "tolist"):
+        value = value.tolist()
+    if not isinstance(value, list):
+        return []
+
+    levels = []
+    for level in value:
+        if hasattr(level, "tolist"):
+            level = level.tolist()
+        if isinstance(level, dict):
+            price_raw = level.get("price")
+            size_raw = level.get("size") or level.get("qty") or level.get("quantity")
+        elif isinstance(level, list | tuple) and len(level) >= 2:
+            price_raw = level[0]
+            size_raw = level[1]
+        else:
+            continue
+        try:
+            levels.append([float(price_raw), float(size_raw)])
+        except (TypeError, ValueError):
+            continue
+    return levels
+
+
+def _build_depth_rows(snapshot: dict | None) -> list[dict]:
+    if snapshot is None:
+        return []
+    bids = _depth_levels(snapshot.get("bids"))
+    asks = _depth_levels(snapshot.get("asks"))
     rows = []
     levels = max(len(bids), len(asks))
     for index in range(levels):
-        bid = bids[index] if index < len(bids) else ["0", "0"]
-        ask = asks[index] if index < len(asks) else ["0", "0"]
+        bid_price, bid_size = bids[index] if index < len(bids) else [0.0, 0.0]
+        ask_price, ask_size = asks[index] if index < len(asks) else [0.0, 0.0]
         rows.append(
             {
-                "price": float(bid[0]) if bid[0] else float(ask[0]),
-                "bid": float(bid[1]),
-                "ask": float(ask[1]),
+                "price": bid_price or ask_price,
+                "bid": bid_size,
+                "ask": ask_size,
             }
         )
     return rows
@@ -42,7 +75,9 @@ def _build_depth_rows(snapshot: dict | None) -> list[dict]:
 def _symbol_score_from_signals(symbol: str) -> dict:
     store = experiment_store()
     signals = [signal for signal in store.list_payloads("signals") if signal["symbol"] == symbol]
-    paper_trades = [trade for trade in store.list_payloads("paper_trades") if trade["symbol"] == symbol]
+    paper_trades = [
+        trade for trade in store.list_payloads("paper_trades") if trade["symbol"] == symbol
+    ]
     trades = [trade for trade in store.list_payloads("trades") if trade["symbol"] == symbol]
     scores = load_latest_scores()
     score_row = scores[scores["symbol"] == symbol].to_dict(orient="records")
@@ -54,14 +89,17 @@ def _symbol_score_from_signals(symbol: str) -> dict:
     orderbook = load_symbol_orderbook(symbol)
     latest_signal = signals[0] if signals else None
     latest_orderbook = orderbook.iloc[-1].to_dict() if not orderbook.empty else None
+    avg_pump_return = cycles["pump_return"].mean() if not cycles.empty else 0.0
+    avg_dump_return = cycles["dump_return"].mean() if not cycles.empty else 0.0
+    median_duration_hours = cycles["duration_hours"].median() if not cycles.empty else 0.0
     return {
         "symbol": symbol,
         "manipulation_score": float(score_row.get("score", len(signals) * 10 + len(trades) * 5)),
         "score_bucket": score_row.get("bucket", "medium"),
         "cycle_count": int(score_row.get("cycle_count", len(cycles))),
-        "avg_pump_return": float(score_row.get("avg_pump_return", cycles["pump_return"].mean() if not cycles.empty else 0.0)),
-        "avg_dump_return": float(score_row.get("avg_dump_return", cycles["dump_return"].mean() if not cycles.empty else 0.0)),
-        "median_duration_hours": float(cycles["duration_hours"].median()) if not cycles.empty else 0.0,
+        "avg_pump_return": float(score_row.get("avg_pump_return", avg_pump_return)),
+        "avg_dump_return": float(score_row.get("avg_dump_return", avg_dump_return)),
+        "median_duration_hours": float(median_duration_hours),
         "latest_funding": float(funding["funding_rate"].iloc[-1]) if not funding.empty else 0.0,
         "oi_change_1h": (
             float(open_interest["open_interest"].pct_change(1).fillna(0.0).iloc[-1])
@@ -94,7 +132,9 @@ def _symbol_score_from_signals(symbol: str) -> dict:
             "snapshot_time": latest_orderbook.get("snapshot_time") if latest_orderbook else None,
             "spread_bps": latest_orderbook.get("spread_bps") if latest_orderbook else None,
             "imbalance": latest_orderbook.get("imbalance") if latest_orderbook else None,
-            "slippage_bps_sell": latest_orderbook.get("slippage_bps_sell") if latest_orderbook else {},
+            "slippage_bps_sell": (
+                latest_orderbook.get("slippage_bps_sell") if latest_orderbook else {}
+            ),
         },
     }
 
@@ -104,7 +144,10 @@ def list_symbols():
     signal_symbols = {signal["symbol"] for signal in experiment_store().list_payloads("signals")}
     ohlcv_dir = DATA_ROOT / "processed" / "ohlcv" / "1h"
     file_symbols = {path.stem for path in ohlcv_dir.glob("*.parquet")}
-    payload = [_symbol_score_from_signals(symbol) for symbol in sorted(signal_symbols | file_symbols)]
+    payload = [
+        _symbol_score_from_signals(symbol)
+        for symbol in sorted(signal_symbols | file_symbols)
+    ]
     return envelope(payload)
 
 
