@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
+from super_crypto.experiments.run_experiment import _score_cutoff_for_split
 from super_crypto.universe.manipulation_score import score_symbols
 
 
@@ -45,3 +46,7 @@ def test_manipulation_score_point_in_time():
     assert scores[0].cycle_count == 1
     assert scores[0].point_in_time_cutoff == cutoff
 
+
+def test_experiment_score_cutoff_uses_split_end():
+    assert _score_cutoff_for_split("train_validation").isoformat().startswith("2026-04-30")
+    assert _score_cutoff_for_split("holdout").isoformat().startswith("2026-06-30")

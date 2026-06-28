@@ -24,6 +24,7 @@ def generate(
         lookback_bars=int(config["lookback_bars"]),
         support_window=int(config["support_window"]),
         peak_window=int(config["peak_window"]),
+        support_type=str(config.get("support_type", "rolling_low")),
     )
     frame["pump_context"] = pump_context(frame)
     frame["support_break"] = frame["close"] <= frame["support_level"] * (
@@ -31,7 +32,8 @@ def generate(
     )
     confirmations = int(config["confirmation_bars"])
     frame["confirmed_break"] = (
-        frame["support_break"].rolling(confirmations, min_periods=confirmations).sum() == confirmations
+        frame["support_break"].rolling(confirmations, min_periods=confirmations).sum()
+        == confirmations
     )
     frame["trigger"] = frame["pump_context"] & frame["confirmed_break"]
     signals = []
@@ -57,4 +59,3 @@ def generate(
             )
         )
     return signals
-

@@ -19,12 +19,14 @@ def build_feature_matrix(
     lookback_bars: int = 24,
     support_window: int = 6,
     peak_window: int = 12,
+    support_type: str = "rolling_low",
 ) -> pd.DataFrame:
     result = add_price_features(
         ohlcv,
         lookback_bars=lookback_bars,
         support_window=support_window,
         peak_window=peak_window,
+        support_type=support_type,
     )
     result = merge_derivatives(result, funding=funding, open_interest=open_interest)
     result = add_taker_features(result)

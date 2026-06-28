@@ -13,7 +13,7 @@ from super_crypto.backtest.trade_report import to_frame, write_csv
 from super_crypto.backtest.vectorbt_runner import run_vectorbt_benchmark
 from super_crypto.common.config import hash_file, hash_payload, load_yaml
 from super_crypto.common.paths import DATA_ROOT, REPORT_ROOT, ensure_directory
-from super_crypto.common.time import to_iso, utc_now
+from super_crypto.common.time import parse_timestamp, to_iso, utc_now
 from super_crypto.experiments.experiment_store import ExperimentStore
 from super_crypto.features.orderbook_features import latest_orderbook_metrics
 from super_crypto.reports.html_report import render_html_report
@@ -24,7 +24,6 @@ from super_crypto.signals.v4b_confirmed_short import generate as generate_v4b
 from super_crypto.universe.manipulation_score import score_symbols
 from super_crypto.validation.robustness import by_month, by_symbol
 from super_crypto.validation.splits import filter_frame_for_split, split_hash
-
 
 GENERATOR_MAP = {
     "V3": generate_v3,
@@ -55,7 +54,19 @@ def _data_snapshot_hash(paths: list[Path]) -> str:
     return hash_payload(payload)
 
 
-def _load_scores(config_path: str, symbols: list[str], cutoff_time, derivatives_by_symbol: dict[str, pd.DataFrame]) -> list:
+def _score_cutoff_for_split(split: str) -> pd.Timestamp:
+    split_config = load_yaml("configs/splits.yaml")
+    if split == "train_validation":
+        return parse_timestamp(split_config["validation"]["end"])
+    return parse_timestamp(split_config[split]["end"])
+
+
+def _load_scores(
+    config_path: str,
+    symbols: list[str],
+    cutoff_time,
+    derivatives_by_symbol: dict[str, pd.DataFrame],
+) -> list:
     cycle_frames = []
     for symbol in symbols:
         path = DATA_ROOT / "processed" / "cycles" / f"{symbol}.parquet"
@@ -89,7 +100,10 @@ def _parameter_scan(
     if not parameter_grid:
         return []
     keys = list(parameter_grid.keys())
-    combos = [dict(zip(keys, values, strict=True)) for values in product(*(parameter_grid[key] for key in keys))]
+    combos = [
+        dict(zip(keys, values, strict=True))
+        for values in product(*(parameter_grid[key] for key in keys))
+    ]
     results = []
     for combo in combos:
         combo_config = {**strategy_config, **combo}
@@ -117,7 +131,10 @@ def _parameter_scan(
                 max_hold_bars=int(
                     combo_config.get(
                         "max_hold_bars",
-                        backtest_config["max_hold_hours"].get(str(strategy_config["strategy"]).lower(), 8),
+                        backtest_config["max_hold_hours"].get(
+                            str(strategy_config["strategy"]).lower(),
+                            8,
+                        ),
                     )
                 ),
             )
@@ -143,7 +160,9 @@ def run(config_path: str, split: str, final_flag: bool = False) -> dict:
     backtest_config = load_yaml(experiment_config["backtest_config"])
     strategy_name = str(strategy_config["strategy"])
     generator = GENERATOR_MAP[strategy_name]
-    ohlcv_paths = sorted((DATA_ROOT / "processed" / "ohlcv" / strategy_config["timeframe"]).glob("*.parquet"))
+    ohlcv_paths = sorted(
+        (DATA_ROOT / "processed" / "ohlcv" / strategy_config["timeframe"]).glob("*.parquet")
+    )
     store = ExperimentStore()
     trades_payloads = []
     signals_payloads = []
@@ -163,8 +182,13 @@ def run(config_path: str, split: str, final_flag: bool = False) -> dict:
         derivatives_by_symbol[symbol] = open_interest.assign(
             funding_rate=float(funding["funding_rate"].iloc[-1]) if not funding.empty else 0.0
         )
-    cutoff_time = utc_now()
-    score_records = _load_scores(experiment_config["scores_config"], symbols, cutoff_time, derivatives_by_symbol)
+    cutoff_time = _score_cutoff_for_split(split)
+    score_records = _load_scores(
+        experiment_config["scores_config"],
+        symbols,
+        cutoff_time,
+        derivatives_by_symbol,
+    )
     score_lookup = {score.symbol: score for score in score_records}
     manipulation_bucket_by_symbol = {symbol: score.bucket for symbol, score in score_lookup.items()}
     for ohlcv_path in ohlcv_paths:

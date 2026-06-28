@@ -24,6 +24,7 @@ def generate(
         lookback_bars=int(config["lookback_bars"]),
         support_window=int(config["support_window"]),
         peak_window=int(config["peak_window"]),
+        support_type=str(config.get("support_type", "rolling_low")),
     )
     frame["pump_context"] = pump_context(frame)
     frame["first_sell"] = frame["sell_pressure"] <= float(config["first_sell_pressure_threshold"])
@@ -54,4 +55,3 @@ def generate(
             )
         )
     return signals
-

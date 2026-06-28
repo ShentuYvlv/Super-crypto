@@ -4,9 +4,9 @@ backtest_config: configs/backtest.yaml
 scores_config: configs/scores.yaml
 engine: event_driven
 parameter_grid:
+  support_type: [rolling_low, rolling_close_low, confirmed_pivot_low, pump_since_low]
   first_sell_pressure_threshold: [-0.015, -0.01, -0.005]
   support_break_threshold: [0.003, 0.005, 0.008]
   trailing_stop_pct: [0.015, 0.02, 0.025]
   stop_loss_pct: [0.012, 0.015, 0.018]
 minimum_trade_count: 20
-
