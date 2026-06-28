@@ -10,7 +10,5 @@ strategy_configs:
   - configs/strategy_v4b.yaml
 scores_config: configs/scores.yaml
 enrichment_config: configs/enrichment.yaml
-webhooks:
-  discord: ${DISCORD_WEBHOOK_URL}
-  telegram: ${TELEGRAM_WEBHOOK_URL}
+webhooks: {}
 dedupe_window_minutes: 120

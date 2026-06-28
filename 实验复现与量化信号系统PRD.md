@@ -49,7 +49,7 @@
    - 实时扫描目标币。
    - 触发 V4A 类信号。
    - 输出 entry、stop、trailing stop、confidence、reason。
-   - 推送到 Dashboard 和 Webhook。
+   - 写入数据库并展示到 Dashboard；Webhook 只作为可选通知扩展。
 
 ### 2.2 非目标
 
@@ -259,7 +259,7 @@ python -m super_crypto.realtime.scanner --config configs/scanner.yaml
 5. 回测层：用 vectorbt 做参数扫描，用 event-driven backtester 做最终验收，自定义成本和风控。
 6. 验证层：时间切分、币种切分、purged split、无未来函数检查。
 7. AutoResearch 层：读取实验历史、提出假设、生成实验计划、运行 validation、解释结果、决定保留或拒绝。
-8. 信号层：实时 scanner、Dashboard、Webhook。
+8. 信号层：实时 scanner、本地 Dashboard、可选 Webhook 通知。
 
 数据流：
 
@@ -274,7 +274,8 @@ Binance API
   -> event-driven bar backtest
   -> experiment reports
   -> optional autoresearch loop
-  -> dashboard / webhook
+  -> dashboard
+  -> optional webhook
 ```
 
 ## 5. 技术选型
@@ -295,7 +296,7 @@ Binance API
 
 #### 5.2.1 全市场低成本扫描路径
 
-每轮扫描覆盖全部 USDT-M 合约，使用低成本、可高频获取的数据。
+每轮扫描覆盖全部 USDT-M 合约，使用低成本、可高频获取的数据。Binance USDT-M 公共行情接口不需要 API key，`BINANCE_BASE_URL` 只用于切换 endpoint。
 
 | 来源 | 频率 | 范围 | 字段 |
 |---|---:|---|---|
@@ -315,7 +316,7 @@ Binance API
 
 #### 5.2.2 候选级深扫路径
 
-只对候选币、watchlist、active pool、top movers 做深扫，避免全市场重数据拖垮扫描。
+只对候选币、watchlist、active pool、top movers 做深扫，避免全市场重数据拖垮扫描。CoinGlass 当前按逆向 public 接口和本地缓存设计，不要求 `COINGLASS_API_KEY`；接口字段变化或请求失败时记录 `request_failed`，不阻断主 pipeline。
 
 | 来源 | 频率 | 范围 | 字段 |
 |---|---:|---|---|
@@ -455,6 +456,7 @@ LLM 的定位：
 - 可以总结失败实验、提出新参数组合、生成报告。
 - 不直接输出交易信号。
 - 不替代回测、验证和成本模型。
+- 环境变量统一使用 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL`，不绑定单一模型供应商。
 
 ### 5.7 Dashboard 和推送
 
@@ -466,7 +468,7 @@ LLM 的定位：
 - 图表：ECharts 或 Recharts；K 线优先 TradingView Lightweight Charts。
 - Report API：FastAPI，只读查询 SQLite / DuckDB / Parquet / reports。
 - MLflow：可选，用于实验追踪；第一版不强依赖。
-- Discord / Telegram Webhook：信号推送。
+- Webhook：可选通知通道，默认不配置 Discord / Telegram，不作为第一版必需能力。
 
 Dashboard 不参与策略验收，不触发实验，不触发 holdout，不修改配置。V4A 验证完成前，不把前端页面作为实验执行入口；第一阶段必须保证命令行、pipeline、配置文件、Parquet/SQLite、CSV trade log、Markdown/HTML report 可用。Web Dashboard 是查看结果的最终常用形态。
 
@@ -1757,7 +1759,7 @@ agent 禁止修改：
 - 检查 V4A/V4B 条件。
 - 生成信号。
 - 写入 SQLite。
-- 推送 webhook。
+- 可选推送 webhook；默认只写 SQLite 并展示到 Dashboard。
 
 ### 14.2 Dashboard
 
@@ -1825,7 +1827,9 @@ GET /api/reports
 - `entry_reference`
 - `reason`
 
-### 14.3 Webhook
+### 14.3 可选 Webhook
+
+Webhook 不是第一版必需项。默认 `configs/scanner.yaml` 使用 `webhooks: {}`，scanner 只写 SQLite 和 Dashboard 可读数据；如果后续需要 Discord、Telegram 或企业 IM，再显式配置 URL。
 
 推送内容：
 
@@ -2021,7 +2025,7 @@ GET /api/reports
 - 全市场低成本快照。
 - 候选级深扫。
 - 信号落库。
-- Webhook 推送。
+- 可选 Webhook 推送。
 - paper trade 记录。
 
 验收：
@@ -2174,7 +2178,7 @@ GET /api/reports
 2. 操纵评分动态化。
 3. taker / long-short / OI / Funding 因子归因。
 4. 本地 Web Dashboard。
-5. Webhook。
+5. 可选 Webhook 通知。
 
 第三优先级：
 

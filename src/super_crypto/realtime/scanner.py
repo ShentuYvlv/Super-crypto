@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import timedelta
-from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
@@ -53,12 +51,22 @@ def run(config_path: str, *, once: bool = False) -> dict:
                 ohlcv = _load_frame(symbol)
                 if ohlcv.empty:
                     continue
-                funding_path = DATA_ROOT / "processed" / "derivatives" / f"funding_{symbol}.parquet"
-                oi_path = DATA_ROOT / "processed" / "derivatives" / f"open_interest_{symbol}.parquet"
-                orderbook_path = DATA_ROOT / "processed" / "orderbook_features" / f"{symbol}.parquet"
+                funding_path = (
+                    DATA_ROOT / "processed" / "derivatives" / f"funding_{symbol}.parquet"
+                )
+                oi_path = (
+                    DATA_ROOT / "processed" / "derivatives" / f"open_interest_{symbol}.parquet"
+                )
+                orderbook_path = (
+                    DATA_ROOT / "processed" / "orderbook_features" / f"{symbol}.parquet"
+                )
                 funding = pd.read_parquet(funding_path) if funding_path.exists() else pd.DataFrame()
                 open_interest = pd.read_parquet(oi_path) if oi_path.exists() else pd.DataFrame()
-                orderbook = pd.read_parquet(orderbook_path) if orderbook_path.exists() else pd.DataFrame()
+                orderbook = (
+                    pd.read_parquet(orderbook_path)
+                    if orderbook_path.exists()
+                    else pd.DataFrame()
+                )
                 orderbook_metrics = latest_orderbook_metrics(orderbook)
                 if strategy_config["strategy"] == "V4A":
                     signals = generate_v4a(
@@ -89,7 +97,8 @@ def run(config_path: str, *, once: bool = False) -> dict:
                         if existing["symbol"] == signal.symbol
                         and existing["strategy"] == signal.strategy
                         and pd.Timestamp(existing["signal_time"])
-                        >= pd.Timestamp(signal.signal_time) - pd.Timedelta(minutes=config["dedupe_window_minutes"])
+                        >= pd.Timestamp(signal.signal_time)
+                        - pd.Timedelta(minutes=config["dedupe_window_minutes"])
                     ]
                     if recent_duplicates:
                         continue
@@ -121,7 +130,9 @@ def run(config_path: str, *, once: bool = False) -> dict:
                             "holding_minutes": 0.0,
                             "mae": 0.0,
                             "mfe": 0.0,
-                            "orderbook_snapshot_status": "healthy" if orderbook_metrics["spread_bps"] else "partial",
+                            "orderbook_snapshot_status": (
+                                "healthy" if orderbook_metrics["spread_bps"] else "partial"
+                            ),
                         },
                     )
                     webhook_payload = {
@@ -136,7 +147,7 @@ def run(config_path: str, *, once: bool = False) -> dict:
                         "manipulation_score_bucket": signal.manipulation_score_bucket,
                         "reason": signal.reason,
                     }
-                    for url in config["webhooks"].values():
+                    for url in config.get("webhooks", {}).values():
                         if url:
                             _send_webhook(url, webhook_payload)
         heartbeat = {

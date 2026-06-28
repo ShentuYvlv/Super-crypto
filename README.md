@@ -8,8 +8,15 @@
 - validation / holdout guard、pipeline、report
 - FastAPI 只读 API
 - Next.js Dashboard
-- realtime scanner、webhook、paper trade
+- realtime scanner、可选 webhook、paper trade
 - AutoResearch 边界模块
+
+默认行情数据说明：
+
+- Binance USDT-M 公共行情接口不需要 API key。
+- CoinGlass 当前按逆向 public 接口/缓存增强设计，不要求 `COINGLASS_API_KEY`。
+- Discord / Telegram webhook 不是必需项，只在 `configs/scanner.yaml` 手动配置后启用。
+- LLM 只用于后续 AutoResearch 研究助理，环境变量使用 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL`。
 
 ## 快速开始
 
@@ -37,4 +44,3 @@ npm run build
 ```
 
 `report serve` 会优先挂载 `dashboard/out` 作为只读前端静态站点。
-

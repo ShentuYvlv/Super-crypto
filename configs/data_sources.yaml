@@ -1,9 +1,12 @@
 binance:
   base_url: https://fapi.binance.com
+  auth_required: false
   recv_window_ms: 5000
 coinglass:
   enabled: true
-  base_url: https://open-api-v4.coinglass.com
+  access_mode: reverse_public
+  auth_required: false
+  base_url: https://www.coinglass.com
   cache_minutes:
     tickers: 15
     futures_flow: 15
@@ -12,4 +15,3 @@ coinglass:
 etherscan:
   enabled: false
   base_url: https://api.etherscan.io/v2/api
-

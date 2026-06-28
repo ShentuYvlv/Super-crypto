@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-import polars as pl
+import httpx
 
 from super_crypto.common.config import load_yaml
 from super_crypto.common.paths import DATA_ROOT, ensure_parent
 from super_crypto.data.coinglass_client import CoinGlassClient
 from super_crypto.data.normalize_external import normalize_records
-
 
 ENDPOINT_MAP = {
     "tickers": "/api/futures/tickers",
@@ -27,16 +24,23 @@ def run(config_path: str, symbols: list[str] | None = None) -> dict:
         for symbol in selected_symbols:
             endpoint_stats: dict[str, int | str] = {}
             for endpoint in endpoints:
-                payload = client.get(ENDPOINT_MAP[endpoint], params={"symbol": symbol})
-                rows = payload.get("data", []) if isinstance(payload, dict) else []
-                frame = normalize_records(symbol, endpoint, rows if isinstance(rows, list) else [rows])
-                path = ensure_parent(DATA_ROOT / "raw" / "coinglass" / endpoint / f"{symbol}.parquet")
+                try:
+                    payload = client.get(ENDPOINT_MAP[endpoint], params={"symbol": symbol})
+                    rows = payload.get("data", []) if isinstance(payload, dict) else []
+                    request_failed = False
+                except (httpx.HTTPError, ValueError):
+                    rows = []
+                    request_failed = True
+                normalized_rows = rows if isinstance(rows, list) else [rows]
+                frame = normalize_records(symbol, endpoint, normalized_rows)
+                path = ensure_parent(
+                    DATA_ROOT / "raw" / "coinglass" / endpoint / f"{symbol}.parquet"
+                )
                 frame.write_parquet(path)
                 processed = ensure_parent(
                     DATA_ROOT / "processed" / "external_enrichment" / f"{endpoint}_{symbol}.parquet"
                 )
                 frame.write_parquet(processed)
-                endpoint_stats[endpoint] = frame.height if client.enabled else "missing_api_key"
+                endpoint_stats[endpoint] = "request_failed" if request_failed else frame.height
             results[symbol] = endpoint_stats
     return results
-

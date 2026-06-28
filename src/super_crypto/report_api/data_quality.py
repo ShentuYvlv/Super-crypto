@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 
 from fastapi import APIRouter
 
 from super_crypto.common.paths import DATA_ROOT
 from super_crypto.report_api.deps import envelope
 from super_crypto.report_api.loaders import latest_pipeline_stage, list_pipeline_runs
-
 
 router = APIRouter(prefix="/api/data-quality", tags=["data-quality"])
 
@@ -43,12 +41,12 @@ def get_data_quality():
         if name == "coinglass_cache":
             coinglass = enrich_details.get("coinglass", {})
             if coinglass and any(
-                value == "missing_api_key"
+                value == "request_failed"
                 for symbol_info in coinglass.values()
                 for value in symbol_info.values()
             ):
-                status = "blocked"
-                notes.append("missing_api_key")
+                status = "partial"
+                notes.append("request_failed")
         payload.append(
             {
                 "source_name": name,

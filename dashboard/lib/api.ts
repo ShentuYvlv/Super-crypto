@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ApiEnvelope } from "@/types/api";
 
@@ -8,6 +8,9 @@ export function useApi<T>(path: string, fallback: T) {
   const [data, setData] = useState<T>(fallback);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fallbackRef = useRef(fallback);
+
+  fallbackRef.current = fallback;
 
   useEffect(() => {
     let active = true;
@@ -26,7 +29,7 @@ export function useApi<T>(path: string, fallback: T) {
         }
       } catch (caughtError) {
         if (active) {
-          setData(fallback);
+          setData(fallbackRef.current);
           setError(caughtError instanceof Error ? caughtError.message : "request_failed");
         }
       } finally {
@@ -40,7 +43,7 @@ export function useApi<T>(path: string, fallback: T) {
     return () => {
       active = false;
     };
-  }, [fallback, path]);
+  }, [path]);
 
   return { data, loading, error };
 }
