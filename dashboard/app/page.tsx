@@ -73,7 +73,7 @@ export default function OverviewPage() {
               <h3 className="text-2xl font-semibold">Candidate Scoreboard</h3>
               <p className="text-sm text-muted">Point-in-time cutoff, score bucket, derivatives, and latest signal.</p>
             </div>
-            <Link href="/symbols" className="text-sm text-accent">
+            <Link href="/symbols" prefetch={false} className="text-sm text-accent">
               View all
             </Link>
           </div>
@@ -85,6 +85,7 @@ export default function OverviewPage() {
                 <Link
                   key={row.symbol}
                   href={`/symbols?symbol=${encodeURIComponent(row.symbol)}`}
+                  prefetch={false}
                   className="grid grid-cols-[1.1fr_.7fr_.7fr_.7fr_1fr] gap-3 rounded-md bg-[#11161d] px-3 py-3 text-sm hover:bg-surface2"
                 >
                   <span className="font-medium">{row.symbol}</span>
@@ -128,6 +129,7 @@ export default function OverviewPage() {
                 <Link
                   key={signal.signal_id}
                   href={`/signals?signal=${encodeURIComponent(signal.signal_id)}`}
+                  prefetch={false}
                   className="block rounded-lg border border-border bg-[#11161d] p-4 hover:bg-surface2"
                 >
                   <div className="flex items-start justify-between gap-3">

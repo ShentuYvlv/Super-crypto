@@ -316,7 +316,7 @@ Binance API
 
 #### 5.2.2 候选级深扫路径
 
-只对候选币、watchlist、active pool、top movers 做深扫，避免全市场重数据拖垮扫描。CoinGlass 当前按逆向 public 接口和本地缓存设计，不要求 `COINGLASS_API_KEY`；接口字段变化或请求失败时记录 `request_failed`，不阻断主 pipeline。
+只对候选币、watchlist、active pool、top movers 做深扫，避免全市场重数据拖垮扫描。CoinGlass 当前按逆向 `capi.coinglass.com` / `fapi.coinglass.com` 接口和本地缓存设计，不要求 `COINGLASS_API_KEY`；请求必须带 `encryption: true`、`cache-ts-v2`、`origin`、`referer`、`language`、浏览器 UA，并在响应加密时用 header `user` / `v` / `time` 自动 AES-ECB 解密和 gzip/zlib 解压。接口字段变化或请求失败时记录 `request_failed`，不阻断主 pipeline。
 
 | 来源 | 频率 | 范围 | 字段 |
 |---|---:|---|---|

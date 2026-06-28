@@ -7,13 +7,6 @@ from super_crypto.common.paths import DATA_ROOT, ensure_parent
 from super_crypto.data.coinglass_client import CoinGlassClient
 from super_crypto.data.normalize_external import normalize_records
 
-ENDPOINT_MAP = {
-    "tickers": "/api/futures/tickers",
-    "futures_flow": "/api/futures/flow",
-    "spot_flow": "/api/spot/flow",
-    "coin_info": "/api/coins/info",
-}
-
 
 def run(config_path: str, symbols: list[str] | None = None) -> dict:
     config = load_yaml(config_path)
@@ -25,8 +18,7 @@ def run(config_path: str, symbols: list[str] | None = None) -> dict:
             endpoint_stats: dict[str, int | str] = {}
             for endpoint in endpoints:
                 try:
-                    payload = client.get(ENDPOINT_MAP[endpoint], params={"symbol": symbol})
-                    rows = payload.get("data", []) if isinstance(payload, dict) else []
+                    rows = client.fetch(endpoint, symbol)
                     request_failed = False
                 except (httpx.HTTPError, ValueError):
                     rows = []

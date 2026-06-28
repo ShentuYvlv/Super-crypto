@@ -6,9 +6,11 @@ coinglass:
   enabled: true
   access_mode: reverse_public
   auth_required: false
-  base_url: https://www.coinglass.com
+  capi_base_url: https://capi.coinglass.com
+  fapi_base_url: https://fapi.coinglass.com
   cache_minutes:
     tickers: 15
+    spot_tickers: 30
     futures_flow: 15
     spot_flow: 30
     coin_info: 360

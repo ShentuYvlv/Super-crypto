@@ -12,6 +12,7 @@ coinglass:
   enabled: true
   endpoints:
     - tickers
+    - spot_tickers
     - futures_flow
     - spot_flow
     - coin_info
@@ -21,4 +22,3 @@ quality:
     futures_flow: 15
     spot_flow: 30
     coin_info: 360
-
