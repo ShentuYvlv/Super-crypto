@@ -5,7 +5,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { DataTable } from "@/components/tables/DataTable";
 import { HashBadge } from "@/components/HashBadge";
 import { StatusBadge } from "@/components/StatusBadge";
-import { displayText } from "@/lib/display";
+import { displayDateTime, displayText } from "@/lib/display";
 import type { Experiment } from "@/types/api";
 
 const columnHelper = createColumnHelper<Experiment>();
@@ -27,6 +27,10 @@ const columns = [
   columnHelper.accessor("status", {
     header: "状态",
     cell: ({ getValue }) => <StatusBadge value={getValue()} />
+  }),
+  columnHelper.accessor("created_at", {
+    header: "运行时间",
+    cell: ({ getValue }) => displayDateTime(getValue())
   }),
   columnHelper.accessor((row) => row.metrics.net_return, {
     id: "net_return",
@@ -69,17 +73,26 @@ const columns = [
     cell: ({ getValue }) => <HashBadge value={getValue()} />
   }),
   columnHelper.accessor("failure_reason", {
-    header: "风险",
+    header: "结论",
     cell: ({ getValue, row }) => displayText(getValue() ?? (row.original.metrics.trade_count < 20 ? "low_trade_count" : "-"))
   })
 ];
 
 export function ExperimentTable({
   data,
-  onRowClick
+  onRowClick,
+  activeExperimentId
 }: {
   data: Experiment[];
   onRowClick?: (row: Experiment) => void;
+  activeExperimentId?: string;
 }) {
-  return <DataTable data={data} columns={columns} onRowClick={onRowClick} />;
+  return (
+    <DataTable
+      data={data}
+      columns={columns}
+      onRowClick={onRowClick}
+      isRowActive={(row) => row.experiment_id === activeExperimentId}
+    />
+  );
 }

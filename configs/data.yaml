@@ -5,6 +5,10 @@ symbols:
   - WCTUSDT
   - HEMIUSDT
   - PROMPTUSDT
+  - VELVETUSDT
+  - TACUSDT
+  - ACTUSDT
+  - WLDUSDT
 timeframes:
   - 1m
   - 5m

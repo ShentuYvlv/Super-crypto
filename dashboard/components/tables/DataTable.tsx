@@ -10,11 +10,13 @@ import {
 export function DataTable<TData>({
   data,
   columns,
-  onRowClick
+  onRowClick,
+  isRowActive
 }: {
   data: TData[];
   columns: ColumnDef<TData, any>[];
   onRowClick?: (row: TData) => void;
+  isRowActive?: (row: TData) => boolean;
 }) {
   const table = useReactTable({
     data,
@@ -43,7 +45,12 @@ export function DataTable<TData>({
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className={onRowClick ? "cursor-pointer hover:bg-surface2/60" : "hover:bg-surface2/60"}
+                className={[
+                  onRowClick ? "cursor-pointer" : "",
+                  isRowActive?.(row.original)
+                    ? "bg-surface2/80 ring-1 ring-inset ring-accent/40"
+                    : "hover:bg-surface2/60"
+                ].join(" ")}
                 onClick={() => onRowClick?.(row.original)}
               >
                 {row.getVisibleCells().map((cell) => (

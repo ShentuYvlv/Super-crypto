@@ -8,6 +8,10 @@ manual_watchlist:
   - WCTUSDT
   - HEMIUSDT
   - PROMPTUSDT
+  - VELVETUSDT
+  - TACUSDT
+  - ACTUSDT
+  - WLDUSDT
 score_buckets:
   ultra_high: 85
   high: 70

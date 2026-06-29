@@ -4,6 +4,10 @@ symbols:
   - WCTUSDT
   - HEMIUSDT
   - PROMPTUSDT
+  - VELVETUSDT
+  - TACUSDT
+  - ACTUSDT
+  - WLDUSDT
 poll_interval_sec: 60
 strategy_configs:
   - configs/strategy_v4a.yaml

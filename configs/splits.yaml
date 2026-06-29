@@ -1,12 +1,12 @@
 train:
-  start: 2025-03-01T00:00:00Z
-  end: 2025-12-31T23:59:59Z
+  start: 2026-04-27T00:00:00Z
+  end: 2026-05-31T23:59:59Z
 validation:
-  start: 2026-01-01T00:00:00Z
-  end: 2026-04-30T23:59:59Z
+  start: 2026-06-01T00:00:00Z
+  end: 2026-06-14T23:59:59Z
 holdout:
-  start: 2026-05-01T00:00:00Z
-  end: 2026-06-30T23:59:59Z
+  start: 2026-06-15T00:00:00Z
+  end: 2026-06-29T23:59:59Z
 purge_bars: 2
 symbol_split_files:
   train: configs/symbol_splits/train.txt
@@ -18,4 +18,3 @@ holdout_policy:
   max_manual_runs: 1
   require_final_flag: true
   require_clean_experiment_log: true
-

@@ -11,7 +11,7 @@ import { TradeTable } from "@/components/tables/TradeTable";
 import { Card } from "@/components/ui/card";
 import { HashBadge } from "@/components/HashBadge";
 import { useApi } from "@/lib/api";
-import { displayStatus, displayText, localizeValue } from "@/lib/display";
+import { displayDateTime, displayStatus, displayText, localizeValue } from "@/lib/display";
 import type { Experiment, ExperimentDetail } from "@/types/api";
 
 const EMPTY_DETAIL: ExperimentDetail = {
@@ -104,13 +104,22 @@ function BacktestContent() {
       <Card className="p-5">
         <ExperimentTable
           data={experiments.data}
+          activeExperimentId={selectedId}
           onRowClick={(row) => router.push(`/backtest?experiment=${encodeURIComponent(row.experiment_id)}`)}
         />
       </Card>
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 lg:grid-cols-6">
         <Card className="p-4">
           <p className="text-sm text-muted">策略</p>
           <p className="mt-3 text-2xl font-semibold">{detail.data.strategy}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-sm text-muted">状态</p>
+          <p className="mt-3 text-2xl font-semibold">{displayStatus(detail.data.status)}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-sm text-muted">运行时间</p>
+          <p className="mt-3 text-lg font-semibold">{displayDateTime(detail.data.created_at)}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted">净收益</p>
@@ -123,6 +132,10 @@ function BacktestContent() {
         <Card className="p-4">
           <p className="text-sm text-muted">剔除前 5 笔后</p>
           <p className="mt-3 text-2xl font-semibold">{(detail.data.metrics.top5_removed_net_return * 100).toFixed(1)}%</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-sm text-muted">结论</p>
+          <p className="mt-3 text-lg font-semibold">{displayText(detail.data.failure_reason ?? (detail.data.metrics.trade_count < 20 ? "low_trade_count" : detail.data.status))}</p>
         </Card>
       </div>
       <Card className="p-5">

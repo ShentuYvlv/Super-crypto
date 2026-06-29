@@ -20,7 +20,7 @@ const items = [
 export function SideNav() {
   const pathname = usePathname();
   return (
-    <aside className="flex w-full flex-col border-b border-border bg-[#0e1218] px-4 py-6 lg:min-h-screen lg:w-64 lg:border-b-0 lg:border-r">
+    <aside className="flex w-full flex-col border-b border-border bg-[#0e1218] px-4 py-6 lg:sticky lg:top-0 lg:min-h-screen lg:w-64 lg:self-start lg:border-b-0 lg:border-r">
       <div className="mb-8">
         <h1 className="text-3xl font-semibold text-accent">Super Crypto</h1>
         <p className="text-sm text-muted">量化研究终端</p>
@@ -34,8 +34,8 @@ export function SideNav() {
               href={item.href}
               prefetch={false}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-3 text-sm text-muted transition hover:bg-surface2 hover:text-text",
-                active && "bg-surface2 text-text"
+                "flex items-center gap-3 rounded-md border border-transparent px-3 py-3 text-sm text-muted transition hover:bg-surface2 hover:text-text",
+                active && "border-accent/30 bg-surface2 text-text shadow-panel"
               )}
             >
               <span className={cn("h-2 w-2 rounded-full bg-muted", active && "bg-accent")} />

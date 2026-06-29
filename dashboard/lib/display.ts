@@ -65,6 +65,9 @@ const TEXT_LABELS: Record<string, string> = {
   "No persisted vectorbt benchmark found for this experiment.": "该实验没有持久化的 vectorbt 对照结果。",
   "No vectorbt benchmark entries were generated.": "没有生成 vectorbt 对照入场。",
   "No critical warning from the latest pipeline run.": "最新 pipeline 没有关键告警。",
+  trade_count_below_threshold: "交易数低于门槛",
+  score_count_zero: "评分结果为 0",
+  request_failed: "请求失败",
   "CoinGlass cache": "CoinGlass 缓存",
   binance_klines: "Binance K 线",
   binance_funding: "Binance 资金费",
@@ -163,4 +166,23 @@ export function localizeValue(value: unknown): unknown {
     return displayText(value);
   }
   return value;
+}
+
+export function displayDateTime(value: string | null | undefined): string {
+  if (!value) {
+    return "-";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).format(parsed);
 }
