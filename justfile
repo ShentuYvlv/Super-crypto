@@ -4,6 +4,12 @@ set shell := ["sh", "-cu"]
 research:
   uv run python -m super_crypto.cli pipeline --config configs/pipeline_v4a.yaml --split train_validation
 
+loopresearch:
+  uv run python -m super_crypto.cli autoresearch --config configs/experiment_v4a.yaml
+
+loopresearch-local:
+  uv run python -m super_crypto.cli autoresearch --config configs/experiment_v4a.yaml --no-llm
+
 holdout:
   uv run python -m super_crypto.cli pipeline --config configs/pipeline_v4a.yaml --split holdout --final
 

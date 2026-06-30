@@ -141,8 +141,17 @@ def scanner(
 def autoresearch(
     config: str = typer.Option("configs/experiment_v4a.yaml", "--config"),
     autoresearch_config: str = typer.Option("configs/autoresearch.yaml", "--autoresearch-config"),
+    max_runs: int | None = typer.Option(None, "--max-runs", min=1),
+    no_llm: bool = typer.Option(False, "--no-llm"),
 ) -> None:
-    typer.echo(run_loop(config, autoresearch_config_path=autoresearch_config))
+    typer.echo(
+        run_loop(
+            config,
+            autoresearch_config_path=autoresearch_config,
+            max_runs=max_runs,
+            use_llm=not no_llm,
+        )
+    )
 
 
 @app.command("leakage-check")

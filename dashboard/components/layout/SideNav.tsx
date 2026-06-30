@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const items = [
   { href: "/", label: "总览" },
   { href: "/experiments", label: "实验" },
+  { href: "/autoresearch", label: "研究循环" },
   { href: "/backtest", label: "回测" },
   { href: "/signals", label: "信号" },
   { href: "/trades", label: "交易" },

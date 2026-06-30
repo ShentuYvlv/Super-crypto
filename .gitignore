@@ -10,9 +10,9 @@ data/processed/**/*.csv
 data/processed/**/*.json
 data/processed/**/*.html
 data/processed/**/*.md
+data/processed/autoresearch/
 data/super_crypto.db
 
 dashboard/node_modules/
 dashboard/.next/
 dashboard/out/
-

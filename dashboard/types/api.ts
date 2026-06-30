@@ -218,6 +218,66 @@ export type PipelineRun = {
   updated_at: string;
 };
 
+export type AutoResearchIteration = {
+  iteration: number;
+  hypothesis: {
+    hypothesis?: string;
+    rationale?: string;
+    risk?: string;
+    llm_error?: string;
+  };
+  plan: {
+    hypothesis?: string;
+    suggested_changes?: {
+      parameter_grid?: Record<string, unknown>;
+      notes?: string;
+    };
+    llm_error?: string;
+  };
+  generated_config: string;
+  validation_result: {
+    experiment: Experiment;
+  };
+  validation_acceptance: {
+    accepted: boolean;
+    reason: string;
+  };
+  review: {
+    decision?: string;
+    recommendation?: string;
+    trade_summary?: {
+      trade_count: number;
+      symbols: string[];
+      exit_reasons: Record<string, number>;
+      net_return_by_symbol: Record<string, number>;
+    };
+    evidence?: string[];
+    llm_error?: string;
+  };
+};
+
+export type AutoResearchRun = {
+  run_id: string;
+  created_at: string;
+  status: string;
+  config_path: string;
+  autoresearch_config_path: string;
+  model_status: {
+    mode: string;
+    model?: string | null;
+    base_url?: string | null;
+    reason?: string;
+  };
+  latest_acceptance: {
+    accepted: boolean;
+    reason: string;
+  };
+  iterations: AutoResearchIteration[];
+  recommendation: string;
+  recommendation_path?: string;
+  manifest_path?: string;
+};
+
 export type OverviewPayload = {
   latest_pipeline_run?: PipelineRun | null;
   latest_experiment?: Experiment | null;
