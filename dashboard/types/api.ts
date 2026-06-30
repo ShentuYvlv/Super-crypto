@@ -152,6 +152,13 @@ export type SymbolSummary = {
   oi_change_24h: number;
   quote_volume_24h: number;
   data_completeness: number;
+  data_source_summary?: {
+    healthy_sources: number;
+    total_sources: number;
+    coverage: number;
+    status: string;
+    latest_timestamp?: string | null;
+  };
   orderbook_depth_status: string;
   latest_signal?: Signal | null;
   latest_signal_label: string;
@@ -159,6 +166,7 @@ export type SymbolSummary = {
   paper_trade_count: number;
   point_in_time_cutoff?: string | null;
   latest_orderbook: OrderbookSummary;
+  data_sources?: DataQualityRow[];
 };
 
 export type SymbolDetail = SymbolSummary & {
@@ -211,6 +219,7 @@ export type DataQualityRow = {
   status: QualityState;
   file_count: number;
   freshness?: string | null;
+  latest_timestamp?: string | null;
   path?: string;
   notes?: string[];
 };

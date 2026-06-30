@@ -11,7 +11,8 @@ import { SymbolScoreTable } from "@/components/tables/SymbolScoreTable";
 import { TradeTable } from "@/components/tables/TradeTable";
 import { Card } from "@/components/ui/card";
 import { useApi } from "@/lib/api";
-import type { SymbolDetail, SymbolSummary } from "@/types/api";
+import { displayText } from "@/lib/display";
+import type { DataQualityRow, SymbolDetail, SymbolSummary } from "@/types/api";
 
 const EMPTY_SYMBOL: SymbolDetail = {
   symbol: "",
@@ -39,8 +40,51 @@ const EMPTY_SYMBOL: SymbolDetail = {
   signals: [],
   trades: [],
   paper_trades: [],
-  orderbook_depth: []
+  orderbook_depth: [],
+  data_sources: []
 };
+
+function SourceHealthGrid({ rows }: { rows: DataQualityRow[] }) {
+  if (rows.length === 0) {
+    return <EmptyState title="暂无数据源明细" description="当前标的还没有生成 ingest 产物。" />;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] border-separate border-spacing-0 text-sm">
+        <thead className="text-left text-xs uppercase tracking-wide text-muted">
+          <tr>
+            <th className="border-b border-border px-3 py-3">数据源</th>
+            <th className="border-b border-border px-3 py-3">状态</th>
+            <th className="border-b border-border px-3 py-3">文件</th>
+            <th className="border-b border-border px-3 py-3">新鲜度</th>
+            <th className="border-b border-border px-3 py-3">最新时间</th>
+            <th className="border-b border-border px-3 py-3">备注</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={`${row.source_name}-${row.path}`} className="border-b border-border">
+              <td className="border-b border-border px-3 py-3 font-medium text-text">{displayText(row.source_name)}</td>
+              <td className="border-b border-border px-3 py-3">
+                <span className={row.status === "healthy" ? "text-positive" : "text-warning"}>
+                  {displayText(row.status)}
+                </span>
+              </td>
+              <td className="border-b border-border px-3 py-3 font-mono">{row.file_count}</td>
+              <td className="border-b border-border px-3 py-3">{row.freshness ?? "-"}</td>
+              <td className="border-b border-border px-3 py-3 font-mono text-xs">
+                {row.latest_timestamp ? String(row.latest_timestamp).slice(0, 19) : "-"}
+              </td>
+              <td className="border-b border-border px-3 py-3 text-muted">
+                {row.notes?.length ? row.notes.map(displayText).join(", ") : "-"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function SymbolsContent() {
   const router = useRouter();
@@ -58,8 +102,8 @@ function SymbolsContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-4xl font-semibold">标的</h2>
-        <p className="mt-2 text-sm text-muted">按时点展示操纵频率、可交易性评分、盘口深度和滑点证据。</p>
+        <h2 className="text-4xl font-semibold">数据</h2>
+        <p className="mt-2 text-sm text-muted">按标的集中查看 K 线、Funding、OI、盘口、CoinGlass 缓存和策略证据。</p>
       </div>
       <Card className="p-5">
         {list.data.length === 0 ? (
@@ -87,7 +131,25 @@ function SymbolsContent() {
               <p className="text-sm text-muted">持仓量 24 小时</p>
               <p className="mt-3 text-2xl font-semibold">{(detail.data.oi_change_24h * 100).toFixed(1)}%</p>
             </Card>
+            <Card className="p-4">
+              <p className="text-sm text-muted">数据源</p>
+              <p className="mt-3 text-2xl font-semibold">
+                {detail.data.data_source_summary?.healthy_sources ?? 0}/{detail.data.data_source_summary?.total_sources ?? 0}
+              </p>
+            </Card>
           </div>
+          <Card className="p-5">
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h3 className="text-2xl font-semibold">Ingest 数据</h3>
+                <p className="mt-1 text-sm text-muted">
+                  覆盖率 {(detail.data.data_completeness * 100).toFixed(0)}% · 最新数据 {detail.data.data_source_summary?.latest_timestamp ? String(detail.data.data_source_summary.latest_timestamp).slice(0, 19) : "-"}
+                </p>
+              </div>
+              <p className="text-sm text-muted">{displayText(detail.data.data_source_summary?.status ?? "partial")}</p>
+            </div>
+            <SourceHealthGrid rows={detail.data.data_sources ?? []} />
+          </Card>
           <Card className="p-5">
             <h3 className="mb-4 text-2xl font-semibold">标的详情</h3>
             {detail.data.klines.length === 0 ? (

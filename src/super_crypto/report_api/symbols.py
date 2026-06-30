@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
+import pandas as pd
 from fastapi import APIRouter, HTTPException
 
 from super_crypto.common.paths import DATA_ROOT
@@ -18,6 +21,135 @@ from super_crypto.report_api.loaders import (
 )
 
 router = APIRouter(prefix="/api/symbols", tags=["symbols"])
+
+
+def _freshness_label(latest_mtime: float | None) -> str | None:
+    if latest_mtime is None:
+        return None
+    age_seconds = max(0, int(datetime.now(UTC).timestamp() - latest_mtime))
+    if age_seconds < 3600:
+        return f"{age_seconds // 60}m"
+    if age_seconds < 86400:
+        return f"{age_seconds // 3600}h"
+    return f"{age_seconds // 86400}d"
+
+
+def _latest_timestamp(frame: pd.DataFrame, columns: tuple[str, ...]) -> str | None:
+    if frame.empty:
+        return None
+    for column in columns:
+        if column in frame.columns:
+            value = frame[column].dropna().iloc[-1] if frame[column].notna().any() else None
+            return str(value) if value is not None else None
+    return None
+
+
+def _source_row(
+    *,
+    source_name: str,
+    path: Path,
+    frame: pd.DataFrame | None = None,
+    timestamp_columns: tuple[str, ...] = (),
+    notes: list[str] | None = None,
+) -> dict:
+    exists = path.exists()
+    file_count = 1 if exists and path.is_file() else len(list(path.glob("*.parquet"))) if exists else 0
+    latest_mtime = path.stat().st_mtime if exists and path.is_file() else None
+    latest_timestamp = _latest_timestamp(frame if frame is not None else pd.DataFrame(), timestamp_columns)
+    status = "healthy" if file_count else "partial"
+    row_notes = notes or []
+    if frame is not None and frame.empty:
+        status = "partial"
+        row_notes = [*row_notes, "empty_frame"]
+    return {
+        "source_name": source_name,
+        "status": status,
+        "file_count": file_count,
+        "freshness": _freshness_label(latest_mtime),
+        "latest_timestamp": latest_timestamp,
+        "path": str(path),
+        "notes": row_notes,
+    }
+
+
+def _coinglass_source_rows(symbol: str) -> list[dict]:
+    root = DATA_ROOT / "processed" / "external_enrichment"
+    rows = []
+    for endpoint in ("tickers", "coin_info", "spot_tickers", "spot_flow", "futures_flow"):
+        path = root / f"{endpoint}_{symbol}.parquet"
+        frame = pd.read_parquet(path) if path.exists() else pd.DataFrame()
+        rows.append(
+            _source_row(
+                source_name=f"coinglass_{endpoint}",
+                path=path,
+                frame=frame,
+                timestamp_columns=("snapshot_time", "time", "created_at"),
+            )
+        )
+    return rows
+
+
+def _symbol_data_sources(symbol: str) -> list[dict]:
+    rows = []
+    for timeframe in ("1m", "5m", "15m", "1h"):
+        path = DATA_ROOT / "processed" / "ohlcv" / timeframe / f"{symbol}.parquet"
+        frame = pd.read_parquet(path) if path.exists() else pd.DataFrame()
+        rows.append(
+            _source_row(
+                source_name=f"binance_klines_{timeframe}",
+                path=path,
+                frame=frame,
+                timestamp_columns=("open_time", "close_time"),
+            )
+        )
+    funding_path = DATA_ROOT / "processed" / "derivatives" / f"funding_{symbol}.parquet"
+    funding = load_symbol_funding(symbol)
+    rows.append(
+        _source_row(
+            source_name="binance_funding",
+            path=funding_path,
+            frame=funding,
+            timestamp_columns=("funding_time", "open_time"),
+        )
+    )
+    oi_path = DATA_ROOT / "processed" / "derivatives" / f"open_interest_{symbol}.parquet"
+    open_interest = load_symbol_open_interest(symbol)
+    rows.append(
+        _source_row(
+            source_name="binance_open_interest",
+            path=oi_path,
+            frame=open_interest,
+            timestamp_columns=("snapshot_time", "open_time"),
+        )
+    )
+    orderbook_path = DATA_ROOT / "processed" / "orderbook_features" / f"{symbol}.parquet"
+    orderbook = load_symbol_orderbook(symbol)
+    rows.append(
+        _source_row(
+            source_name="binance_orderbook",
+            path=orderbook_path,
+            frame=orderbook,
+            timestamp_columns=("snapshot_time",),
+        )
+    )
+    rows.extend(_coinglass_source_rows(symbol))
+    return rows
+
+
+def _source_summary(rows: list[dict]) -> dict:
+    healthy = sum(1 for row in rows if row["status"] == "healthy")
+    total = len(rows)
+    latest = next(
+        (row["latest_timestamp"] for row in rows if row.get("latest_timestamp")),
+        None,
+    )
+    return {
+        "healthy_sources": healthy,
+        "total_sources": total,
+        "coverage": healthy / total if total else 0.0,
+        "status": "healthy" if healthy == total else "partial" if healthy else "failed",
+        "latest_timestamp": latest,
+    }
 
 
 def _depth_levels(value: Any) -> list[list[float]]:
@@ -89,6 +221,8 @@ def _symbol_score_from_signals(symbol: str) -> dict:
     orderbook = load_symbol_orderbook(symbol)
     latest_signal = signals[0] if signals else None
     latest_orderbook = orderbook.iloc[-1].to_dict() if not orderbook.empty else None
+    data_sources = _symbol_data_sources(symbol)
+    source_summary = _source_summary(data_sources)
     avg_pump_return = cycles["pump_return"].mean() if not cycles.empty else 0.0
     avg_dump_return = cycles["dump_return"].mean() if not cycles.empty else 0.0
     median_duration_hours = cycles["duration_hours"].median() if not cycles.empty else 0.0
@@ -117,7 +251,8 @@ def _symbol_score_from_signals(symbol: str) -> dict:
             else 0.0
         ),
         "quote_volume_24h": float(ohlcv["quote_volume"].tail(24).sum()) if not ohlcv.empty else 0.0,
-        "data_completeness": 1.0 if not orderbook.empty and not funding.empty else 0.8,
+        "data_completeness": float(source_summary["coverage"]),
+        "data_source_summary": source_summary,
         "orderbook_depth_status": "healthy" if not orderbook.empty else "partial",
         "latest_signal": latest_signal,
         "latest_signal_label": (
@@ -136,6 +271,7 @@ def _symbol_score_from_signals(symbol: str) -> dict:
                 latest_orderbook.get("slippage_bps_sell") if latest_orderbook else {}
             ),
         },
+        "data_sources": data_sources,
     }
 
 

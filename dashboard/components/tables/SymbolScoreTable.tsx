@@ -41,6 +41,16 @@ const columns = [
     header: "覆盖率",
     cell: ({ getValue }) => `${(getValue() * 100).toFixed(0)}%`
   }),
+  columnHelper.accessor((row) => row.data_source_summary?.status ?? "partial", {
+    id: "data_source_status",
+    header: "数据状态",
+    cell: ({ getValue }) => <StatusBadge value={getValue()} />
+  }),
+  columnHelper.accessor((row) => row.data_source_summary?.latest_timestamp ?? null, {
+    id: "latest_timestamp",
+    header: "最新数据",
+    cell: ({ getValue }) => getValue() ? String(getValue()).slice(0, 16) : "-"
+  }),
   columnHelper.accessor("latest_signal_label", {
     header: "最新信号",
     cell: ({ getValue }) => displayText(getValue())
