@@ -182,6 +182,24 @@ export type TradeDetail = Trade & {
   signal?: Signal | null;
   is_top5_trade: boolean;
   kline_context: Array<Record<string, number | string>>;
+  trade_marker?: {
+    trade_id: string;
+    side: "SHORT";
+    entry_time: string;
+    exit_time: string;
+    entry_price: number;
+    exit_price: number;
+    quantity_base: number;
+    entry_notional_usdt: number;
+    exit_notional_usdt: number;
+    pnl_usdt: number;
+    net_return: number;
+    gross_return: number;
+    fee_cost: number;
+    slippage_cost: number;
+    funding_cost: number;
+    notional_usdt: number;
+  };
 };
 
 export type DataQualityRow = {

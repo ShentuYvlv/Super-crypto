@@ -95,11 +95,17 @@ function TradesContent() {
             </div>
           </Card>
           <Card className="p-5">
-            <h3 className="mb-4 text-2xl font-semibold">交易 K 线上下文</h3>
+            <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+              <h3 className="text-2xl font-semibold">交易 K 线上下文</h3>
+              <p className="text-xs text-muted">图上数量按单笔名义本金估算，PNL 已扣成本。</p>
+            </div>
             {detail.data.kline_context.length === 0 ? (
               <EmptyState title="暂无 K 线上下文" description="该交易缺少本地 K 线窗口。" />
             ) : (
-              <KlinePanel rows={detail.data.kline_context as Array<{ open_time?: string; open: number; high: number; low: number; close: number }>} />
+              <KlinePanel
+                rows={detail.data.kline_context as Array<{ open_time?: string; open: number; high: number; low: number; close: number }>}
+                tradeMarker={detail.data.trade_marker}
+              />
             )}
           </Card>
         </>

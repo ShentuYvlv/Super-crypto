@@ -7,19 +7,19 @@ import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/", label: "总览" },
-  { href: "/experiments", label: "实验" },
+  { href: "/experiments", label: "实验", activePaths: ["/backtest"] },
   { href: "/autoresearch", label: "研究循环" },
-  { href: "/backtest", label: "回测" },
   { href: "/signals", label: "信号" },
   { href: "/trades", label: "交易" },
   { href: "/symbols", label: "标的" },
   { href: "/data-quality", label: "数据质量" },
-  { href: "/orderbook", label: "盘口" },
   { href: "/reports", label: "报告" }
 ];
 
 export function SideNav() {
   const pathname = usePathname();
+  const normalizedPathname =
+    pathname !== "/" && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
   return (
     <aside className="flex w-full flex-col border-b border-border bg-[#0e1218] px-4 py-6 lg:sticky lg:top-0 lg:min-h-screen lg:w-64 lg:self-start lg:border-b-0 lg:border-r">
       <div className="mb-8">
@@ -28,18 +28,39 @@ export function SideNav() {
       </div>
       <nav className="grid gap-2 md:grid-cols-3 lg:grid-cols-1">
         {items.map((item) => {
-          const active = pathname === item.href;
+          const activePaths = [item.href, ...(item.activePaths ?? [])];
+          const active =
+            item.href === "/"
+              ? normalizedPathname === "/"
+              : activePaths.some(
+                  (activePath) =>
+                    normalizedPathname === activePath ||
+                    normalizedPathname.startsWith(`${activePath}/`)
+                );
           return (
             <Link
               key={item.href}
               href={item.href}
               prefetch={false}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-md border border-transparent px-3 py-3 text-sm text-muted transition hover:bg-surface2 hover:text-text",
-                active && "border-accent/30 bg-surface2 text-text shadow-panel"
+                "group relative flex items-center gap-3 overflow-hidden rounded-md border border-transparent px-3 py-3 text-sm text-muted transition hover:bg-surface2 hover:text-text",
+                active &&
+                  "border-accent/40 bg-surface2 pl-4 font-semibold text-text shadow-panel"
               )}
             >
-              <span className={cn("h-2 w-2 rounded-full bg-muted", active && "bg-accent")} />
+              <span
+                className={cn(
+                  "absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-transparent transition",
+                  active && "bg-accent"
+                )}
+              />
+              <span
+                className={cn(
+                  "h-2.5 w-2.5 rounded-full bg-muted transition group-hover:bg-text",
+                  active && "bg-accent shadow-[0_0_14px_rgba(252,213,53,.65)]"
+                )}
+              />
               {item.label}
             </Link>
           );

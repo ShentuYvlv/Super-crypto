@@ -59,7 +59,7 @@ function SymbolsContent() {
     <div className="space-y-6">
       <div>
         <h2 className="text-4xl font-semibold">标的</h2>
-        <p className="mt-2 text-sm text-muted">按时点展示操纵频率和可交易性评分。</p>
+        <p className="mt-2 text-sm text-muted">按时点展示操纵频率、可交易性评分、盘口深度和滑点证据。</p>
       </div>
       <Card className="p-5">
         {list.data.length === 0 ? (
@@ -98,7 +98,18 @@ function SymbolsContent() {
           </Card>
           <div className="grid gap-6 xl:grid-cols-2">
             <Card className="p-5">
-              <h3 className="mb-4 text-2xl font-semibold">盘口深度</h3>
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <h3 className="text-2xl font-semibold">盘口深度</h3>
+                  <p className="mt-1 text-sm text-muted">
+                    状态：{detail.data.orderbook_depth_status} · 买卖盘不平衡：
+                    {detail.data.latest_orderbook.imbalance?.toFixed(2) ?? "-"}
+                  </p>
+                </div>
+                <p className="font-mono text-sm text-muted">
+                  Spread {detail.data.latest_orderbook.spread_bps?.toFixed(2) ?? "-"} bps
+                </p>
+              </div>
               {detail.data.orderbook_depth.length === 0 ? (
                 <EmptyState title="暂无盘口快照" description="没有盘口快照时，信号可信度会下降。" />
               ) : (
@@ -106,7 +117,10 @@ function SymbolsContent() {
               )}
             </Card>
             <Card className="p-5">
-              <h3 className="mb-4 text-2xl font-semibold">滑点曲线</h3>
+              <div className="mb-4">
+                <h3 className="text-2xl font-semibold">滑点曲线</h3>
+                <p className="mt-1 text-sm text-muted">用于判断该标的能不能承受回测里的单笔名义本金。</p>
+              </div>
               {detail.data.latest_orderbook.slippage_bps_sell ? (
                 <SlippageCurve slippage={detail.data.latest_orderbook.slippage_bps_sell} />
               ) : (
