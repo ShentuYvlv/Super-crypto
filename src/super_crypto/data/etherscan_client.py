@@ -5,6 +5,8 @@ from typing import Any
 
 import httpx
 
+from super_crypto.common.http import http_trust_env
+
 
 class EtherscanClient:
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
@@ -12,7 +14,11 @@ class EtherscanClient:
         self.base_url = base_url or os.environ.get(
             "ETHERSCAN_BASE_URL", "https://api.etherscan.io/v2/api"
         )
-        self.client = httpx.Client(base_url=self.base_url, timeout=20.0)
+        self.client = httpx.Client(
+            base_url=self.base_url,
+            timeout=20.0,
+            trust_env=http_trust_env("ETHERSCAN"),
+        )
 
     @property
     def enabled(self) -> bool:
@@ -21,7 +27,7 @@ class EtherscanClient:
     def close(self) -> None:
         self.client.close()
 
-    def __enter__(self) -> "EtherscanClient":
+    def __enter__(self) -> EtherscanClient:
         return self
 
     def __exit__(self, *_args: Any) -> None:
@@ -34,4 +40,3 @@ class EtherscanClient:
         response = self.client.get("", params=payload)
         response.raise_for_status()
         return response.json()
-

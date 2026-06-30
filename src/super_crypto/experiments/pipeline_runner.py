@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import subprocess
 from hashlib import sha256
+from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -39,10 +41,17 @@ def _git_commit_hash() -> str:
 def _snapshot_hash() -> str:
     payload = []
     for path in sorted((DATA_ROOT / "processed").rglob("*.parquet")):
-        payload.append({"path": str(path), "mtime": path.stat().st_mtime_ns, "size": path.stat().st_size})
+        payload.append(
+            {
+                "path": str(path),
+                "mtime": path.stat().st_mtime_ns,
+                "size": path.stat().st_size,
+            }
+        )
     if not payload:
         return hash_file("configs/pipeline_v4a.yaml")
-    return sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+    snapshot = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return sha256(snapshot.encode()).hexdigest()
 
 
 PIPELINE_STAGES = [
@@ -54,6 +63,107 @@ PIPELINE_STAGES = [
     "run_experiment",
     "report",
 ]
+
+
+def _stage_config(pipeline_config: dict[str, Any], stage: str) -> dict[str, Any]:
+    stages = pipeline_config.get("stages", {})
+    if not isinstance(stages, dict):
+        return {}
+    config = stages.get(stage, {})
+    return config if isinstance(config, dict) else {}
+
+
+def _stage_enabled(pipeline_config: dict[str, Any], stage: str) -> bool:
+    return bool(_stage_config(pipeline_config, stage).get("enabled", True))
+
+
+def _is_stage_fresh(output_paths: list[Path], freshness_seconds: int) -> bool:
+    if not output_paths or not all(path.exists() for path in output_paths):
+        return False
+    oldest_output = min(path.stat().st_mtime for path in output_paths)
+    return utc_now().timestamp() - oldest_output <= freshness_seconds
+
+
+def _has_existing_outputs(output_paths: list[Path]) -> bool:
+    return bool(output_paths) and all(path.exists() for path in output_paths)
+
+
+def _ingest_output_paths(symbols: list[str], timeframes: list[str]) -> list[Path]:
+    paths: list[Path] = []
+    for symbol in symbols:
+        paths.extend(
+            [
+                DATA_ROOT / "processed" / "ohlcv" / timeframe / f"{symbol}.parquet"
+                for timeframe in timeframes
+            ]
+        )
+        paths.extend(
+            [
+                DATA_ROOT / "processed" / "derivatives" / f"funding_{symbol}.parquet",
+                DATA_ROOT / "processed" / "derivatives" / f"open_interest_{symbol}.parquet",
+            ]
+        )
+    return paths
+
+
+def _enrichment_output_paths(symbols: list[str], endpoints: list[str]) -> list[Path]:
+    paths: list[Path] = []
+    for symbol in symbols:
+        paths.append(DATA_ROOT / "processed" / "orderbook_features" / f"{symbol}.parquet")
+        paths.extend(
+            [
+                DATA_ROOT / "processed" / "external_enrichment" / f"{endpoint}_{symbol}.parquet"
+                for endpoint in endpoints
+            ]
+        )
+    return paths
+
+
+def _stage_skip_reason(pipeline_config: dict[str, Any], stage: str, split: str) -> str | None:
+    config = _stage_config(pipeline_config, stage)
+    if not _stage_enabled(pipeline_config, stage):
+        return "disabled"
+
+    data_config_path = pipeline_config.get("data_config", "configs/data.yaml")
+    try:
+        data_config = load_yaml(data_config_path)
+    except Exception:
+        data_config = {}
+    symbols = data_config.get("symbols", [])
+    timeframes = data_config.get("timeframes", [])
+
+    if stage == "ingest" and config.get("skip_if_fresh"):
+        freshness_seconds = int(float(config.get("freshness_hours", 0)) * 3600)
+        outputs = _ingest_output_paths(symbols, timeframes)
+        if freshness_seconds > 0 and _is_stage_fresh(outputs, freshness_seconds):
+            return "fresh_outputs"
+
+    if (
+        stage == "build_splits"
+        and config.get("skip_if_exists")
+        and (DATA_ROOT / "processed" / "split_manifest.json").exists()
+    ):
+        return "existing_split_manifest"
+
+    if stage == "detect_cycles" and not config.get("rebuild", True):
+        outputs = [DATA_ROOT / "processed" / "cycles" / f"{symbol}.parquet" for symbol in symbols]
+        if _has_existing_outputs(outputs):
+            return "existing_cycle_outputs"
+
+    if stage == "enrich" and config.get("skip_if_fresh"):
+        freshness_seconds = int(float(config.get("freshness_minutes", 0)) * 60)
+        try:
+            enrichment_config = load_yaml(pipeline_config.get("enrichment_config", ""))
+        except Exception:
+            enrichment_config = {}
+        endpoints = enrichment_config.get("coinglass", {}).get("endpoints", [])
+        top_n = int(enrichment_config.get("candidate_selection", {}).get("top_n_by_score", 0))
+        selected_symbols = symbols[:top_n] if top_n > 0 else symbols
+        outputs = _enrichment_output_paths(selected_symbols, endpoints)
+        if freshness_seconds > 0 and _is_stage_fresh(outputs, freshness_seconds):
+            return "fresh_outputs"
+
+    return None
 
 
 def run_pipeline(
@@ -103,6 +213,19 @@ def run_pipeline(
             should_execute = True
         if not should_execute:
             continue
+        skip_reason = _stage_skip_reason(pipeline_config, stage, split)
+        if skip_reason and not only_stage:
+            skipped_payload = {
+                "run_id": run_id,
+                "stage": stage,
+                "status": "skipped",
+                "started_at": to_iso(utc_now()),
+                "completed_at": to_iso(utc_now()),
+                "details": {"reason": skip_reason},
+            }
+            store.upsert_stage(skipped_payload)
+            stage_results[stage] = skipped_payload["details"]
+            continue
         stage_payload = {
             "run_id": run_id,
             "stage": stage,
@@ -135,17 +258,29 @@ def run_pipeline(
                     frame["pump_start"] = pd.to_datetime(frame["pump_start"], utc=True)
                     cycle_frames.append(frame)
                     symbol = cycle_path.stem
-                    oi_path = DATA_ROOT / "processed" / "derivatives" / f"open_interest_{symbol}.parquet"
+                    oi_path = (
+                        DATA_ROOT
+                        / "processed"
+                        / "derivatives"
+                        / f"open_interest_{symbol}.parquet"
+                    )
                     if oi_path.exists():
                         derivatives[symbol] = pd.read_parquet(oi_path)
-                cycles = pd.concat(cycle_frames, ignore_index=True) if cycle_frames else pd.DataFrame()
+                cycles = (
+                    pd.concat(cycle_frames, ignore_index=True)
+                    if cycle_frames
+                    else pd.DataFrame()
+                )
                 scores = score_symbols(
                     cycles,
                     cutoff_time=utc_now(),
                     config=load_yaml(pipeline_config["scores_config"]),
                     derivatives_by_symbol=derivatives,
                 )
-                path = write_scores(str(DATA_ROOT / "processed" / "scores" / "latest.parquet"), scores)
+                path = write_scores(
+                    str(DATA_ROOT / "processed" / "scores" / "latest.parquet"),
+                    scores,
+                )
                 details = {"score_count": len(scores), "path": path}
             elif stage == "enrich":
                 enrichment_config = load_yaml(pipeline_config["enrichment_config"])
@@ -153,11 +288,21 @@ def run_pipeline(
                     : enrichment_config["candidate_selection"]["top_n_by_score"]
                 ]
                 details = {
-                    "coinglass": ingest_coinglass(pipeline_config["enrichment_config"], symbols=symbols),
-                    "orderbook": ingest_orderbook(pipeline_config["enrichment_config"], symbols=symbols),
+                    "coinglass": ingest_coinglass(
+                        pipeline_config["enrichment_config"],
+                        symbols=symbols,
+                    ),
+                    "orderbook": ingest_orderbook(
+                        pipeline_config["enrichment_config"],
+                        symbols=symbols,
+                    ),
                 }
             elif stage == "run_experiment":
-                details = run_experiment(pipeline_config["experiment_config"], split, final_flag=final_flag)
+                details = run_experiment(
+                    pipeline_config["experiment_config"],
+                    split,
+                    final_flag=final_flag,
+                )
                 pipeline_run["report_path"] = details["html_report"]
             else:
                 details = {"report_path": pipeline_run["report_path"]}

@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 
 import httpx
 
+from super_crypto.common.http import http_trust_env
 from super_crypto.data.coinglass_crypto import decrypt_response_data
 
 DEFAULT_USER_AGENT = (
@@ -51,7 +52,11 @@ class CoinGlassClient:
         self.obe = obe if obe is not None else os.environ.get("COINGLASS_OBE", "")
         self.capi_base_url = os.environ.get("COINGLASS_CAPI_BASE_URL", "https://capi.coinglass.com")
         self.fapi_base_url = os.environ.get("COINGLASS_FAPI_BASE_URL", "https://fapi.coinglass.com")
-        self.client = httpx.Client(timeout=timeout, follow_redirects=True)
+        self.client = httpx.Client(
+            timeout=timeout,
+            follow_redirects=True,
+            trust_env=http_trust_env("COINGLASS"),
+        )
 
     @property
     def enabled(self) -> bool:

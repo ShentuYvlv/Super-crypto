@@ -1,4 +1,5 @@
-set shell := ["zsh", "-lc"]
+set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
+set shell := ["sh", "-cu"]
 
 research:
   uv run python -m super_crypto.cli pipeline --config configs/pipeline_v4a.yaml --split train_validation
@@ -17,4 +18,3 @@ dashboard:
 
 test:
   uv run pytest
-

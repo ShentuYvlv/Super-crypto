@@ -8,6 +8,7 @@ import httpx
 import pandas as pd
 
 from super_crypto.common.config import load_yaml
+from super_crypto.common.http import http_trust_env
 from super_crypto.common.paths import DATA_ROOT, ensure_parent
 from super_crypto.common.time import to_iso, utc_now
 from super_crypto.experiments.experiment_store import ExperimentStore
@@ -22,7 +23,7 @@ def _send_webhook(url: str, payload: dict) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"}:
         return
-    with httpx.Client(timeout=10.0) as client:
+    with httpx.Client(timeout=10.0, trust_env=http_trust_env("WEBHOOK")) as client:
         client.post(url, json=payload)
 
 
