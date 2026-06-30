@@ -48,6 +48,55 @@ def test_manipulation_score_point_in_time():
     assert scores[0].point_in_time_cutoff == cutoff
 
 
+def test_manipulation_score_derivatives_are_cut_to_cutoff():
+    cutoff = datetime(2026, 2, 1, tzinfo=UTC)
+    cycles = pd.DataFrame(
+        [
+            {
+                "symbol": "MMTUSDT",
+                "pump_start": cutoff - timedelta(days=3),
+                "pump_return": 0.31,
+                "dump_return": 0.22,
+            }
+        ]
+    )
+    derivatives = pd.DataFrame(
+        [
+            {
+                "snapshot_time": cutoff - timedelta(hours=1),
+                "oi_change_24h": 0.01,
+                "funding_rate": 0.001,
+            },
+            {
+                "snapshot_time": cutoff + timedelta(hours=1),
+                "oi_change_24h": 9.0,
+                "funding_rate": 9.0,
+            },
+        ]
+    )
+
+    scores = score_symbols(
+        cycles,
+        cutoff_time=cutoff,
+        config={
+            "lookback_days": 30,
+            "weights": {
+                "cycle_frequency": 0.0,
+                "avg_pump_return": 0.0,
+                "avg_dump_return": 0.0,
+                "oi_momentum": 1.0,
+                "funding_extremes": 1.0,
+                "data_completeness": 0.0,
+            },
+            "buckets": {"ultra_high": 85, "high": 70, "medium": 55, "low": 0},
+        },
+        derivatives_by_symbol={"MMTUSDT": derivatives},
+    )
+
+    assert scores[0].components["oi_momentum"] == 0.01
+    assert scores[0].components["funding_extremes"] == 0.001
+
+
 def test_experiment_score_cutoff_uses_split_end():
     split_config = load_yaml("configs/splits.yaml")
     assert (

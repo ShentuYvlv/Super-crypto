@@ -137,7 +137,20 @@ function BacktestContent() {
           <p className="text-sm text-muted">结论</p>
           <p className="mt-3 text-lg font-semibold">{displayText(detail.data.failure_reason ?? (detail.data.metrics.trade_count < 20 ? "low_trade_count" : detail.data.status))}</p>
         </Card>
+        <Card className="p-4 lg:col-span-2">
+          <p className="text-sm text-muted">参数选择</p>
+          <p className="mt-3 text-lg font-semibold">{displayText(detail.data.parameter_selection_source ?? "base_strategy_config")}</p>
+          <p className="mt-2 text-xs text-muted">{displayText(detail.data.parameter_selection_reason ?? "-")}</p>
+        </Card>
       </div>
+      {detail.data.selected_parameters && Object.keys(detail.data.selected_parameters).length > 0 ? (
+        <Card className="p-5">
+          <h3 className="mb-4 text-2xl font-semibold">选中参数</h3>
+          <pre className="overflow-x-auto rounded-lg bg-[#11161d] p-4 text-xs text-muted">
+            {JSON.stringify(detail.data.selected_parameters, null, 2)}
+          </pre>
+        </Card>
+      ) : null}
       <Card className="p-5">
         <div className="grid gap-4 lg:grid-cols-4">
           <div>

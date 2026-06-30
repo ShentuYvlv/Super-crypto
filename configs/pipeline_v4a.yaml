@@ -2,6 +2,7 @@ name: v4a_research_pipeline
 data_config: configs/data.yaml
 splits_config: configs/splits.yaml
 cycle_config: configs/cycle.yaml
+seed_events_config: configs/seed_events.yaml
 scores_config: configs/scores.yaml
 enrichment_config: configs/enrichment.yaml
 experiment_config: configs/experiment_v4a.yaml
@@ -16,6 +17,8 @@ stages:
   detect_cycles:
     enabled: true
     rebuild: false
+  build_event_set:
+    enabled: true
   score_symbols:
     enabled: true
     point_in_time: true
@@ -40,4 +43,3 @@ guards:
   require_config_hash: true
   require_split_hash: true
   require_data_snapshot_hash: true
-

@@ -42,12 +42,17 @@ def score_symbols(
         oi_momentum = 0.0
         funding_extremes = 0.0
         if deriv is not None and not deriv.empty:
+            deriv = deriv.copy()
+            time_column = "snapshot_time" if "snapshot_time" in deriv.columns else "open_time"
+            if time_column in deriv.columns:
+                deriv[time_column] = pd.to_datetime(deriv[time_column], utc=True)
+                deriv = deriv[deriv[time_column] <= cutoff]
             if "oi_change_24h" in deriv.columns:
-                oi_momentum = float(deriv["oi_change_24h"].iloc[-1])
+                oi_momentum = float(deriv["oi_change_24h"].iloc[-1]) if not deriv.empty else 0.0
             elif "open_interest" in deriv.columns and len(deriv) > 24:
                 oi_momentum = float(deriv["open_interest"].pct_change(24).fillna(0.0).iloc[-1])
             if "funding_rate" in deriv.columns:
-                funding_extremes = float(deriv["funding_rate"].abs().iloc[-1])
+                funding_extremes = float(deriv["funding_rate"].abs().iloc[-1]) if not deriv.empty else 0.0
         data_completeness = 1.0 if deriv is not None and not deriv.empty else 0.8
         score = (
             cycle_count * config["weights"]["cycle_frequency"] * 10

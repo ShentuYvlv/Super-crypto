@@ -73,6 +73,9 @@ def _load_scores(
         if path.exists():
             frame = pd.read_parquet(path)
             frame["pump_start"] = pd.to_datetime(frame["pump_start"], utc=True)
+            if "dump_end" in frame.columns:
+                frame["dump_end"] = pd.to_datetime(frame["dump_end"], utc=True)
+                frame = frame[frame["dump_end"] <= parse_timestamp(cutoff_time)]
             cycle_frames.append(frame)
     cycles = pd.concat(cycle_frames, ignore_index=True) if cycle_frames else pd.DataFrame()
     return score_symbols(
@@ -81,6 +84,78 @@ def _load_scores(
         config=load_yaml(config_path),
         derivatives_by_symbol=derivatives_by_symbol,
     )
+
+
+def _run_strategy_for_config(
+    *,
+    symbols: list[str],
+    ohlcv_by_symbol: dict[str, pd.DataFrame],
+    funding_by_symbol: dict[str, pd.DataFrame],
+    open_interest_by_symbol: dict[str, pd.DataFrame],
+    orderbook_slippage_by_symbol: dict[str, float],
+    split: str,
+    generator,
+    strategy_config: dict,
+    backtest_config: dict,
+    manipulation_bucket_by_symbol: dict[str, str],
+) -> tuple[list[dict], list[dict]]:
+    signals_payloads = []
+    trades_payloads = []
+    for symbol in symbols:
+        split_frame = ohlcv_by_symbol[symbol]
+        signals = generator(
+            split_frame,
+            symbol,
+            strategy_config,
+            funding=funding_by_symbol[symbol],
+            open_interest=open_interest_by_symbol[symbol],
+            manipulation_bucket=manipulation_bucket_by_symbol.get(symbol, "low"),
+            orderbook_slippage_bps=orderbook_slippage_by_symbol[symbol],
+        )
+        signals_payloads.extend([signal.model_dump(mode="json") for signal in signals])
+        max_hold_bars = int(
+            strategy_config.get(
+                "max_hold_bars",
+                backtest_config["max_hold_hours"].get(
+                    str(strategy_config["strategy"]).lower(),
+                    8,
+                ),
+            )
+        )
+        trades = run_event_backtest(
+            split_frame,
+            signals,
+            split=split,
+            capital_per_trade_usdt=float(backtest_config["capital_per_trade_usdt"]),
+            fee_bps=float(backtest_config["fee_bps"]),
+            default_slippage_bps=float(backtest_config["slippage_bps_floor"]),
+            max_hold_bars=max_hold_bars,
+        )
+        trades_payloads.extend([trade.model_dump(mode="json") for trade in trades])
+    return signals_payloads, trades_payloads
+
+
+def _select_parameters(
+    parameter_scan: list[dict],
+    base_metrics: dict,
+    *,
+    minimum_trade_count: int,
+    allow_selection: bool,
+) -> tuple[dict, str, str]:
+    if not allow_selection or not parameter_scan:
+        return {}, "base_strategy_config", "parameter_selection_disabled"
+    for candidate in parameter_scan:
+        accepted, reason = accept(
+            {"metrics": candidate["metrics"]},
+            baseline={"metrics": base_metrics},
+            minimum_trade_count=minimum_trade_count,
+        )
+        if accepted:
+            return candidate["params"], "parameter_grid", reason
+    best = parameter_scan[0]
+    if best["metrics"]["net_return"] > base_metrics["net_return"] and best["metrics"]["trade_count"] >= base_metrics["trade_count"]:
+        return best["params"], "parameter_grid_best_effort", "best_grid_candidate_improved_primary_metric"
+    return {}, "base_strategy_config", "no_grid_candidate_accepted"
 
 
 def _parameter_scan(
@@ -164,8 +239,6 @@ def run(config_path: str, split: str, final_flag: bool = False) -> dict:
         (DATA_ROOT / "processed" / "ohlcv" / strategy_config["timeframe"]).glob("*.parquet")
     )
     store = ExperimentStore()
-    trades_payloads = []
-    signals_payloads = []
     derivatives_by_symbol: dict[str, pd.DataFrame] = {}
     ohlcv_by_symbol: dict[str, pd.DataFrame] = {}
     funding_by_symbol: dict[str, pd.DataFrame] = {}
@@ -206,34 +279,55 @@ def run(config_path: str, split: str, final_flag: bool = False) -> dict:
         orderbook = pd.read_parquet(orderbook_path) if orderbook_path.exists() else pd.DataFrame()
         orderbook_metrics = latest_orderbook_metrics(orderbook)
         orderbook_slippage_by_symbol[symbol] = orderbook_metrics["slippage_500"]
-        score = score_lookup.get(symbol)
-        bucket = score.bucket if score else "low"
-        signals = generator(
-            split_frame,
-            symbol,
-            strategy_config,
-            funding=funding,
-            open_interest=open_interest,
-            manipulation_bucket=bucket,
-            orderbook_slippage_bps=orderbook_metrics["slippage_500"],
-        )
-        signals_payloads.extend([signal.model_dump(mode="json") for signal in signals])
-        max_hold_bars = int(
-            strategy_config.get(
-                "max_hold_bars",
-                backtest_config["max_hold_hours"].get(strategy_name.lower(), 8),
-            )
-        )
-        trades = run_event_backtest(
-            split_frame,
-            signals,
+    base_signals_payloads, base_trades_payloads = _run_strategy_for_config(
+        symbols=list(ohlcv_by_symbol),
+        ohlcv_by_symbol=ohlcv_by_symbol,
+        funding_by_symbol=funding_by_symbol,
+        open_interest_by_symbol=open_interest_by_symbol,
+        orderbook_slippage_by_symbol=orderbook_slippage_by_symbol,
+        split=split,
+        generator=generator,
+        strategy_config=strategy_config,
+        backtest_config=backtest_config,
+        manipulation_bucket_by_symbol=manipulation_bucket_by_symbol,
+    )
+    base_metrics = summarize_metrics(to_frame(base_trades_payloads)).model_dump(mode="json")
+    parameter_scan = _parameter_scan(
+        symbols=list(ohlcv_by_symbol),
+        ohlcv_by_symbol=ohlcv_by_symbol,
+        funding_by_symbol=funding_by_symbol,
+        open_interest_by_symbol=open_interest_by_symbol,
+        orderbook_slippage_by_symbol=orderbook_slippage_by_symbol,
+        split=split,
+        generator=generator,
+        strategy_config=strategy_config,
+        backtest_config=backtest_config,
+        parameter_grid=experiment_config.get("parameter_grid", {}),
+        manipulation_bucket_by_symbol=manipulation_bucket_by_symbol,
+    )
+    minimum_trade_count = int(experiment_config.get("minimum_trade_count", 20))
+    selected_parameters, selection_source, selection_reason = _select_parameters(
+        parameter_scan,
+        base_metrics,
+        minimum_trade_count=minimum_trade_count,
+        allow_selection=split != "holdout",
+    )
+    selected_strategy_config = {**strategy_config, **selected_parameters}
+    if selected_parameters:
+        signals_payloads, trades_payloads = _run_strategy_for_config(
+            symbols=list(ohlcv_by_symbol),
+            ohlcv_by_symbol=ohlcv_by_symbol,
+            funding_by_symbol=funding_by_symbol,
+            open_interest_by_symbol=open_interest_by_symbol,
+            orderbook_slippage_by_symbol=orderbook_slippage_by_symbol,
             split=split,
-            capital_per_trade_usdt=float(backtest_config["capital_per_trade_usdt"]),
-            fee_bps=float(backtest_config["fee_bps"]),
-            default_slippage_bps=float(backtest_config["slippage_bps_floor"]),
-            max_hold_bars=max_hold_bars,
+            generator=generator,
+            strategy_config=selected_strategy_config,
+            backtest_config=backtest_config,
+            manipulation_bucket_by_symbol=manipulation_bucket_by_symbol,
         )
-        trades_payloads.extend([trade.model_dump(mode="json") for trade in trades])
+    else:
+        signals_payloads, trades_payloads = base_signals_payloads, base_trades_payloads
     trades_frame = to_frame(trades_payloads)
     metrics = summarize_metrics(trades_frame)
     experiment_id = hash_payload(
@@ -260,29 +354,16 @@ def run(config_path: str, split: str, final_flag: bool = False) -> dict:
     }
     markdown_path = render_markdown_report(report_dir / "report.md", report_context)
     html_path = render_html_report(report_dir / "report.html", report_context)
-    parameter_scan = _parameter_scan(
-        symbols=list(ohlcv_by_symbol),
-        ohlcv_by_symbol=ohlcv_by_symbol,
-        funding_by_symbol=funding_by_symbol,
-        open_interest_by_symbol=open_interest_by_symbol,
-        orderbook_slippage_by_symbol=orderbook_slippage_by_symbol,
-        split=split,
-        generator=generator,
-        strategy_config=strategy_config,
-        backtest_config=backtest_config,
-        parameter_grid=experiment_config.get("parameter_grid", {}),
-        manipulation_bucket_by_symbol=manipulation_bucket_by_symbol,
-    )
     vectorbt_benchmark = run_vectorbt_benchmark(
         ohlcv_by_symbol=ohlcv_by_symbol,
         signals=signals_payloads,
         split=split,
         backtest_config=backtest_config,
-        strategy_config=strategy_config,
+        strategy_config=selected_strategy_config,
     )
     accepted, decision_reason = accept(
         {"metrics": metrics.model_dump(mode="json")},
-        minimum_trade_count=int(experiment_config.get("minimum_trade_count", 20)),
+        minimum_trade_count=minimum_trade_count,
     )
     experiment_payload = {
         "experiment_id": experiment_id,
@@ -302,6 +383,10 @@ def run(config_path: str, split: str, final_flag: bool = False) -> dict:
         "report_path": html_path,
         "trade_log_path": trade_log_path,
         "metrics": metrics.model_dump(mode="json"),
+        "base_metrics": base_metrics,
+        "selected_parameters": selected_parameters,
+        "parameter_selection_source": selection_source,
+        "parameter_selection_reason": selection_reason,
         "parameter_sensitivity": parameter_scan[:20],
         "vectorbt_benchmark": vectorbt_benchmark,
         "created_at": to_iso(utc_now()),

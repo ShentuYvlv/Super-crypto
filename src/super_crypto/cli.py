@@ -10,6 +10,7 @@ from super_crypto.common.config import load_yaml
 from super_crypto.common.logging import configure_logging
 from super_crypto.common.paths import DATA_ROOT
 from super_crypto.common.time import utc_now
+from super_crypto.cycles.seed_events import build_event_set
 from super_crypto.cycles.label_cycles import run as label_cycles
 from super_crypto.data.ingest_coinglass import run as ingest_coinglass
 from super_crypto.data.ingest_funding import run as ingest_funding
@@ -83,6 +84,14 @@ def score_symbols_command(config: str = typer.Option(..., "--config")) -> None:
     )
     path = write_scores(str(DATA_ROOT / "processed" / "scores" / "latest.parquet"), scores)
     typer.echo({"score_count": len(scores), "path": str(path)})
+
+
+@app.command("build-event-set")
+def build_event_set_command(
+    seed_events_config: str = typer.Option(..., "--seed-events-config"),
+    cycle_config: str = typer.Option(..., "--cycle-config"),
+) -> None:
+    typer.echo(build_event_set(seed_events_config, cycle_config))
 
 
 @app.command()

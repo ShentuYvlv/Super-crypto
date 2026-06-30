@@ -12,6 +12,7 @@ from super_crypto.common.config import hash_file, load_yaml
 from super_crypto.common.paths import DATA_ROOT
 from super_crypto.common.time import to_iso, utc_now
 from super_crypto.cycles.label_cycles import run as label_cycles
+from super_crypto.cycles.seed_events import build_event_set
 from super_crypto.data.ingest_coinglass import run as ingest_coinglass
 from super_crypto.data.ingest_funding import run as ingest_funding
 from super_crypto.data.ingest_klines import run as ingest_klines
@@ -58,6 +59,7 @@ PIPELINE_STAGES = [
     "ingest",
     "build_splits",
     "detect_cycles",
+    "build_event_set",
     "score_symbols",
     "enrich",
     "run_experiment",
@@ -249,6 +251,11 @@ def run_pipeline(
                 data_config = load_yaml(pipeline_config["data_config"])
                 details = label_cycles(
                     pipeline_config["cycle_config"], data_config["symbols"], timeframe="1h"
+                )
+            elif stage == "build_event_set":
+                details = build_event_set(
+                    pipeline_config["seed_events_config"],
+                    pipeline_config["cycle_config"],
                 )
             elif stage == "score_symbols":
                 cycle_frames = []

@@ -75,6 +75,10 @@ const columns = [
   columnHelper.accessor("failure_reason", {
     header: "结论",
     cell: ({ getValue, row }) => displayText(getValue() ?? (row.original.metrics.trade_count < 20 ? "low_trade_count" : "-"))
+  }),
+  columnHelper.accessor("parameter_selection_source", {
+    header: "选参",
+    cell: ({ getValue }) => displayText(getValue() ?? "base_strategy_config")
   })
 ];
 

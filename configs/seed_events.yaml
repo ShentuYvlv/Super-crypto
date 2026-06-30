@@ -1,0 +1,28 @@
+version: seed_events_v1
+description: Manual seed events from the original research note. Replace event windows with exact screenshot timestamps when available.
+manual_seed_events:
+  - seed_id: river_manual_001
+    symbol: RIVERUSDT
+    source: docs/6.28 指导文章.md
+    note: Original hand-captured manipulation event seed; exact screenshot window not yet recorded.
+    pump_start: null
+    peak_time: null
+    dump_end: null
+  - seed_id: sto_manual_001
+    symbol: STOUSDT
+    source: docs/6.28 指导文章.md
+    note: Original hand-captured manipulation event seed; exact screenshot window not yet recorded.
+    pump_start: null
+    peak_time: null
+    dump_end: null
+  - seed_id: mmt_manual_001
+    symbol: MMTUSDT
+    source: docs/6.28 指导文章.md
+    note: Original hand-captured manipulation event seed; exact screenshot window not yet recorded.
+    pump_start: null
+    peak_time: null
+    dump_end: null
+matching:
+  tolerance_hours: 12
+commonality:
+  fallback_to_cycle_config: true

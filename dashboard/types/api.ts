@@ -88,8 +88,12 @@ export type Experiment = {
   created_at: string;
   failure_reason?: string | null;
   metrics: ExperimentMetrics;
+  base_metrics?: ExperimentMetrics;
+  selected_parameters?: Record<string, number | string>;
+  parameter_selection_source?: string;
+  parameter_selection_reason?: string;
   parameter_sensitivity?: Array<{
-    params: Record<string, number>;
+    params: Record<string, number | string>;
     signal_count: number;
     metrics: ExperimentMetrics;
   }>;
