@@ -5,7 +5,9 @@ from super_crypto.experiments.experiment_store import ExperimentStore
 from super_crypto.experiments.pipeline_store import PipelineStore
 
 
-def envelope(payload, *, source: str = "sqlite", freshness_sec: int = 0, data_quality: str = "healthy"):
+def envelope(
+    payload, *, source: str = "sqlite", freshness_sec: int = 0, data_quality: str = "healthy"
+):
     return {
         "generated_at": utc_now().isoformat(),
         "source": source,
@@ -23,4 +25,3 @@ def experiment_store() -> ExperimentStore:
 
 def pipeline_store() -> PipelineStore:
     return PipelineStore()
-

@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-import polars as pl
-
 from super_crypto.common.config import load_yaml
 from super_crypto.common.paths import DATA_ROOT, ensure_parent
 from super_crypto.data.binance_client import BinanceFuturesClient
 from super_crypto.data.data_quality import summarize_ohlcv_quality
 from super_crypto.data.normalize_ohlcv import normalize_klines
-
 
 TIMEFRAME_TO_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "1h": 60}
 
@@ -19,7 +14,9 @@ def kline_limit(days: int, timeframe: str) -> int:
     return min(days * bars_per_day, 1500)
 
 
-def run(config_path: str, symbols: list[str] | None = None, timeframes: list[str] | None = None) -> dict:
+def run(
+    config_path: str, symbols: list[str] | None = None, timeframes: list[str] | None = None
+) -> dict:
     config = load_yaml(config_path)
     selected_symbols = symbols or config["symbols"]
     selected_timeframes = timeframes or config["timeframes"]
@@ -49,4 +46,3 @@ def run(config_path: str, symbols: list[str] | None = None, timeframes: list[str
                 )
             results[symbol] = symbol_quality
     return results
-

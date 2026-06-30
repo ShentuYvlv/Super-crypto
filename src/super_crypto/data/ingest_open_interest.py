@@ -40,7 +40,8 @@ def run(config_path: str, symbols: list[str] | None = None) -> dict:
             snapshot = {
                 "snapshot_time": to_iso(utc_now()),
                 "open_interest": open_interest.get("openInterest", 0),
-                "oi_value_usd": float(open_interest.get("openInterest", 0)) * float(mark_price or 0),
+                "oi_value_usd": float(open_interest.get("openInterest", 0))
+                * float(mark_price or 0),
             }
             frame = normalize_open_interest(symbol, [snapshot])
             existing = _load_existing(symbol)
@@ -65,7 +66,8 @@ def run(config_path: str, symbols: list[str] | None = None) -> dict:
             )
             results[symbol] = {
                 "rows": combined.height,
-                "oi_change_window": float(changes["oi_change_window"][0]) if latest.height > 1 else 0.0,
+                "oi_change_window": float(changes["oi_change_window"][0])
+                if latest.height > 1
+                else 0.0,
             }
     return results
-

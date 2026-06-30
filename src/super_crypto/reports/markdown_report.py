@@ -24,12 +24,13 @@ def render_markdown_report(path: Path, context: dict) -> str:
         "",
     ]
     for signal in context["signals"][:20]:
+        reason = ", ".join(signal["reason"])
         lines.append(
-            f"- {signal['symbol']} {signal['strategy']} {signal['signal_time']} | confidence {signal['confidence']:.2f} | {', '.join(signal['reason'])}"
+            f"- {signal['symbol']} {signal['strategy']} {signal['signal_time']} "
+            f"| confidence {signal['confidence']:.2f} | {reason}"
         )
     lines.extend(["", "## By Symbol", ""])
     for row in context["symbol_breakdown"]:
         lines.append(f"- {row['symbol']}: net {row['net_return']:.2%}, trades {row['trade_count']}")
     path.write_text("\n".join(lines), encoding="utf-8")
     return str(path)
-

@@ -3,7 +3,16 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
-from super_crypto.report_api import data_quality, experiments, overview, pipeline, reports, signals, symbols, trades
+from super_crypto.report_api import (
+    data_quality,
+    experiments,
+    overview,
+    pipeline,
+    reports,
+    signals,
+    symbols,
+    trades,
+)
 
 
 def create_app() -> FastAPI:

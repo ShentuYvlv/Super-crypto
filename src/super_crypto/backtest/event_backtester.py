@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-
 import pandas as pd
 
 from super_crypto.backtest.bar_engine import iter_bars
@@ -12,7 +10,6 @@ from super_crypto.backtest.execution_costs import (
 )
 from super_crypto.backtest.exits import should_stop_out, should_trail_exit
 from super_crypto.backtest.fill_model import short_entry_price, short_exit_price
-from super_crypto.backtest.position_sizing import fixed_notional_size
 from super_crypto.backtest.strategy_state import PositionState
 from super_crypto.common.types import SignalRecord, TradeRecord
 
@@ -62,7 +59,9 @@ def run_event_backtest(
             state.lowest_price = min(state.lowest_price, float(bar["low"]))
             state.highest_adverse_price = max(state.highest_adverse_price, float(bar["high"]))
             if should_stop_out(state, float(bar["high"])):
-                exit_price = short_exit_price(state.entry_price * (1 + state.stop_loss_pct), slippage_bps)
+                exit_price = short_exit_price(
+                    state.entry_price * (1 + state.stop_loss_pct), slippage_bps
+                )
                 exit_time = bar["close_time"].to_pydatetime()
                 exit_reason = "stop_loss"
                 break

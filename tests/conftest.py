@@ -36,4 +36,3 @@ def sample_ohlcv() -> pd.DataFrame:
     frame.loc[5, "taker_buy_quote_volume"] = 450
     frame.loc[6, "taker_buy_quote_volume"] = 380
     return frame
-

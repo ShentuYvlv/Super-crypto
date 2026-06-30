@@ -13,4 +13,3 @@ def classify_freshness(
     if blocked_after_sec is not None and freshness_sec > blocked_after_sec:
         return "blocked"
     return "stale"
-

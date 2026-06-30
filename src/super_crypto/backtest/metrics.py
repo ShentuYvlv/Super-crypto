@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 
-import numpy as np
 import pandas as pd
 
 from super_crypto.common.types import ExperimentMetrics
@@ -59,6 +58,7 @@ def summarize_metrics(trades: pd.DataFrame) -> ExperimentMetrics:
         fee_cost=float(trades["fee_cost"].sum()),
         slippage_cost=float(trades["slippage_cost"].sum()),
         funding_cost=float(trades["funding_cost"].sum()),
-        top5_removed_net_return=float((1 + top5_removed).prod() - 1) if not top5_removed.empty else 0.0,
+        top5_removed_net_return=float((1 + top5_removed).prod() - 1)
+        if not top5_removed.empty
+        else 0.0,
     )
-

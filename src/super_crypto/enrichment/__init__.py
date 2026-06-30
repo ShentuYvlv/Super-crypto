@@ -1,2 +1,1 @@
 """Candidate enrichment helpers."""
-

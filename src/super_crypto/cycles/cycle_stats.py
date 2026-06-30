@@ -12,4 +12,3 @@ def summarize_cycles(cycles: pd.DataFrame) -> dict:
         "avg_dump_return": float(cycles["dump_return"].mean()),
         "median_duration_hours": float(cycles["duration_hours"].median()),
     }
-

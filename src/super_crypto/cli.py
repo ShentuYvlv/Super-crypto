@@ -1,30 +1,30 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 import pandas as pd
-import polars as pl
 import typer
 
 from super_crypto.autoresearch.agent_loop import run_loop
 from super_crypto.common.config import load_yaml
 from super_crypto.common.logging import configure_logging
-from super_crypto.common.paths import DATA_ROOT, ensure_parent
+from super_crypto.common.paths import DATA_ROOT
 from super_crypto.common.time import utc_now
+from super_crypto.cycles.label_cycles import run as label_cycles
 from super_crypto.data.ingest_coinglass import run as ingest_coinglass
 from super_crypto.data.ingest_funding import run as ingest_funding
 from super_crypto.data.ingest_klines import run as ingest_klines
 from super_crypto.data.ingest_market_snapshots import run as ingest_market_snapshots
 from super_crypto.data.ingest_open_interest import run as ingest_open_interest
 from super_crypto.data.ingest_orderbook import run as ingest_orderbook
-from super_crypto.cycles.label_cycles import run as label_cycles
+from super_crypto.experiments.experiment_store import ExperimentStore
 from super_crypto.experiments.pipeline_runner import run_pipeline
 from super_crypto.experiments.run_experiment import run as run_experiment
-from super_crypto.experiments.experiment_store import ExperimentStore
 from super_crypto.realtime.scanner import run as run_scanner
 from super_crypto.reports.report_server import serve
 from super_crypto.universe.manipulation_score import score_symbols, write_scores
 from super_crypto.validation.leakage_checks import scan_for_negative_shift
 from super_crypto.validation.splits import build_split_manifest, holdout_guard
-
 
 app = typer.Typer(help="Super Crypto research CLI")
 report_app = typer.Typer(help="Report server and dashboard")
@@ -56,7 +56,7 @@ def build_splits_command(config: str = typer.Option(..., "--config")) -> None:
 @app.command("detect-cycles")
 def detect_cycles_command(
     config: str = typer.Option(..., "--config"),
-    symbols: list[str] = typer.Option(None),
+    symbols: Annotated[list[str] | None, typer.Option()] = None,
 ) -> None:
     data_config = load_yaml("configs/data.yaml")
     typer.echo(label_cycles(config, symbols or data_config["symbols"]))
@@ -78,7 +78,9 @@ def score_symbols_command(config: str = typer.Option(..., "--config")) -> None:
         if oi_path.exists():
             derivatives[symbol] = pd.read_parquet(oi_path)
     cycles = pd.concat(cycle_frames, ignore_index=True) if cycle_frames else pd.DataFrame()
-    scores = score_symbols(cycles, cutoff_time=utc_now(), config=score_config, derivatives_by_symbol=derivatives)
+    scores = score_symbols(
+        cycles, cutoff_time=utc_now(), config=score_config, derivatives_by_symbol=derivatives
+    )
     path = write_scores(str(DATA_ROOT / "processed" / "scores" / "latest.parquet"), scores)
     typer.echo({"score_count": len(scores), "path": str(path)})
 
@@ -86,7 +88,7 @@ def score_symbols_command(config: str = typer.Option(..., "--config")) -> None:
 @app.command()
 def enrich(
     config: str = typer.Option(..., "--config"),
-    symbols: list[str] = typer.Option(None),
+    symbols: Annotated[list[str] | None, typer.Option()] = None,
 ) -> None:
     typer.echo(
         {

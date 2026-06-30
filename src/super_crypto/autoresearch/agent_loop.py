@@ -20,7 +20,11 @@ def run_loop(config_path: str, autoresearch_config_path: str = "configs/autorese
     hypotheses = generate_hypotheses(experiments)
     plan = plan_next_experiment(config_path, hypotheses[0])
     latest = experiments[0] if experiments else None
-    accepted, reason = accept(latest, baseline=experiments[1] if len(experiments) > 1 else None) if latest else (False, "no_experiment")
+    accepted, reason = (
+        accept(latest, baseline=experiments[1] if len(experiments) > 1 else None)
+        if latest
+        else (False, "no_experiment")
+    )
     validation_config_path = write_experiment_variant(config_path, plan)
     validation_split = "validation"
     holdout_guard("configs/splits.yaml", validation_split, final_flag=False)

@@ -12,4 +12,3 @@ def backfill_oi_changes(frame: pd.DataFrame) -> pd.DataFrame:
     result["oi_change_24h"] = result["open_interest"].pct_change(24).fillna(0.0)
     result["oi_acceleration"] = result["oi_change_1h"] - result["oi_change_6h"] / 6.0
     return result
-

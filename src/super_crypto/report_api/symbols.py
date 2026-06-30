@@ -145,8 +145,7 @@ def list_symbols():
     ohlcv_dir = DATA_ROOT / "processed" / "ohlcv" / "1h"
     file_symbols = {path.stem for path in ohlcv_dir.glob("*.parquet")}
     payload = [
-        _symbol_score_from_signals(symbol)
-        for symbol in sorted(signal_symbols | file_symbols)
+        _symbol_score_from_signals(symbol) for symbol in sorted(signal_symbols | file_symbols)
     ]
     return envelope(payload)
 

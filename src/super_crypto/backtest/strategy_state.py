@@ -15,4 +15,3 @@ class PositionState:
     trailing_stop_pct: float
     lowest_price: float
     highest_adverse_price: float
-

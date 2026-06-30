@@ -22,4 +22,3 @@ def to_iso(dt: datetime) -> str:
 
 def minutes_ago(minutes: int) -> datetime:
     return utc_now() - timedelta(minutes=minutes)
-

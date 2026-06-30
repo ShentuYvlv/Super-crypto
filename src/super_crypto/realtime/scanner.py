@@ -52,9 +52,7 @@ def run(config_path: str, *, once: bool = False) -> dict:
                 ohlcv = _load_frame(symbol)
                 if ohlcv.empty:
                     continue
-                funding_path = (
-                    DATA_ROOT / "processed" / "derivatives" / f"funding_{symbol}.parquet"
-                )
+                funding_path = DATA_ROOT / "processed" / "derivatives" / f"funding_{symbol}.parquet"
                 oi_path = (
                     DATA_ROOT / "processed" / "derivatives" / f"open_interest_{symbol}.parquet"
                 )
@@ -64,9 +62,7 @@ def run(config_path: str, *, once: bool = False) -> dict:
                 funding = pd.read_parquet(funding_path) if funding_path.exists() else pd.DataFrame()
                 open_interest = pd.read_parquet(oi_path) if oi_path.exists() else pd.DataFrame()
                 orderbook = (
-                    pd.read_parquet(orderbook_path)
-                    if orderbook_path.exists()
-                    else pd.DataFrame()
+                    pd.read_parquet(orderbook_path) if orderbook_path.exists() else pd.DataFrame()
                 )
                 orderbook_metrics = latest_orderbook_metrics(orderbook)
                 if strategy_config["strategy"] == "V4A":

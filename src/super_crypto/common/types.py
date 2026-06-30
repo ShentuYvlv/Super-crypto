@@ -5,7 +5,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 QualityState = Literal["healthy", "partial", "stale", "failed", "blocked"]
 SplitName = Literal["train", "validation", "holdout", "train_validation"]
 StrategyName = Literal["V3", "V4A", "V4B"]
@@ -183,4 +182,3 @@ class ApiEnvelope(BaseModel):
     missing_fields: list[str] = Field(default_factory=list)
     stale_fields: list[str] = Field(default_factory=list)
     payload: Any
-

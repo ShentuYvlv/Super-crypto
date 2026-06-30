@@ -13,4 +13,3 @@ def build_quality_flags(*, missing_fields: list[str], stale_fields: list[str]) -
         "missing_fields": missing_fields,
         "stale_fields": stale_fields,
     }
-

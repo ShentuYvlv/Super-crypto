@@ -13,4 +13,3 @@ def test_holdout_requires_final_flag():
 
 def test_no_negative_shift_in_signal_files():
     assert scan_for_negative_shift() == []
-

@@ -76,4 +76,3 @@ def run(config_path: str, symbols: list[str] | None = None) -> dict:
                 "slippage_bps_sell": snapshot["slippage_bps_sell"],
             }
     return results
-

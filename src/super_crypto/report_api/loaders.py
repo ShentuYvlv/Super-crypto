@@ -27,19 +27,27 @@ def load_symbol_cycles(symbol: str) -> pd.DataFrame:
 
 
 def load_symbol_ohlcv(symbol: str, timeframe: str = "1h") -> pd.DataFrame:
-    return read_parquet_if_exists(DATA_ROOT / "processed" / "ohlcv" / timeframe / f"{symbol}.parquet")
+    return read_parquet_if_exists(
+        DATA_ROOT / "processed" / "ohlcv" / timeframe / f"{symbol}.parquet"
+    )
 
 
 def load_symbol_orderbook(symbol: str) -> pd.DataFrame:
-    return read_parquet_if_exists(DATA_ROOT / "processed" / "orderbook_features" / f"{symbol}.parquet")
+    return read_parquet_if_exists(
+        DATA_ROOT / "processed" / "orderbook_features" / f"{symbol}.parquet"
+    )
 
 
 def load_symbol_funding(symbol: str) -> pd.DataFrame:
-    return read_parquet_if_exists(DATA_ROOT / "processed" / "derivatives" / f"funding_{symbol}.parquet")
+    return read_parquet_if_exists(
+        DATA_ROOT / "processed" / "derivatives" / f"funding_{symbol}.parquet"
+    )
 
 
 def load_symbol_open_interest(symbol: str) -> pd.DataFrame:
-    return read_parquet_if_exists(DATA_ROOT / "processed" / "derivatives" / f"open_interest_{symbol}.parquet")
+    return read_parquet_if_exists(
+        DATA_ROOT / "processed" / "derivatives" / f"open_interest_{symbol}.parquet"
+    )
 
 
 def load_scanner_status() -> dict | None:
@@ -90,9 +98,7 @@ def list_pipeline_runs() -> list[dict]:
 
 def latest_pipeline_stage(run_id: str, stage_name: str) -> dict | None:
     matches = [
-        stage
-        for stage in PipelineStore().list_stages(run_id)
-        if stage.get("stage") == stage_name
+        stage for stage in PipelineStore().list_stages(run_id) if stage.get("stage") == stage_name
     ]
     matches.sort(
         key=lambda item: item.get("completed_at") or item.get("started_at") or "",

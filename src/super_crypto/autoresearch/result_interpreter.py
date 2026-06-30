@@ -9,4 +9,3 @@ def summarize_result(experiment: dict) -> dict:
         "drawdown": metrics["max_drawdown"],
         "cost_pressure": metrics["fee_cost"] + metrics["slippage_cost"] + metrics["funding_cost"],
     }
-

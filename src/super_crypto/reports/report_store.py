@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from super_crypto.common.paths import REPORT_ROOT
 
 
@@ -21,4 +19,3 @@ def list_reports() -> list[dict]:
             }
         )
     return sorted(reports, key=lambda item: item["generated_at"], reverse=True)
-

@@ -23,4 +23,3 @@ def latest_orderbook_metrics(orderbook: pd.DataFrame | None) -> dict[str, float]
         "slippage_1000": float(sell_side.get("1000", 0.0)),
         "max_size_under_50bps": 1000.0 if float(sell_side.get("1000", 99.0)) <= 50 else 500.0,
     }
-

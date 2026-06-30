@@ -31,4 +31,3 @@ def by_month(trades: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
         .sort_values("month")
     )
-

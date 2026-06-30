@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pandas as pd
 import polars as pl
@@ -42,7 +41,9 @@ def run(config_path: str, symbols: list[str], timeframe: str = "1h") -> dict:
             records = []
             for cycle in cycles:
                 record = cycle.model_dump(mode="json")
-                record["score_context"] = json.dumps(record.get("score_context", {}), ensure_ascii=False)
+                record["score_context"] = json.dumps(
+                    record.get("score_context", {}), ensure_ascii=False
+                )
                 records.append(record)
             output_frame = pl.DataFrame(records)
         else:

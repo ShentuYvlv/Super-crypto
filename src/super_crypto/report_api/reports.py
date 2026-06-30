@@ -8,7 +8,6 @@ from super_crypto.report_api.deps import envelope
 from super_crypto.report_api.loaders import artifact_url, list_experiments
 from super_crypto.reports.report_store import list_reports
 
-
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 

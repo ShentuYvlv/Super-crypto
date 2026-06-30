@@ -50,5 +50,10 @@ def test_manipulation_score_point_in_time():
 
 def test_experiment_score_cutoff_uses_split_end():
     split_config = load_yaml("configs/splits.yaml")
-    assert _score_cutoff_for_split("train_validation").isoformat() == split_config["validation"]["end"].isoformat()
-    assert _score_cutoff_for_split("holdout").isoformat() == split_config["holdout"]["end"].isoformat()
+    assert (
+        _score_cutoff_for_split("train_validation").isoformat()
+        == split_config["validation"]["end"].isoformat()
+    )
+    assert (
+        _score_cutoff_for_split("holdout").isoformat() == split_config["holdout"]["end"].isoformat()
+    )

@@ -14,4 +14,3 @@ def generate_hypotheses(experiments: list[dict]) -> list[str]:
     if metrics["max_drawdown"] < -0.12:
         hypotheses.append("Reduce max hold and tighten trailing stop.")
     return hypotheses or ["Retest current best config on fresh validation window."]
-

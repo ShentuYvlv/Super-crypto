@@ -25,12 +25,18 @@ def add_onchain_analysis_fields(
     if "direction" not in events.columns:
         events["direction"] = "unknown"
     if "is_whale" not in events.columns:
-        events["is_whale"] = pd.to_numeric(events["amount_usd"], errors="coerce").fillna(0.0) > 100_000
+        events["is_whale"] = (
+            pd.to_numeric(events["amount_usd"], errors="coerce").fillna(0.0) > 100_000
+        )
     events["open_time"] = events[time_column].dt.floor("h")
     grouped = (
         events.assign(
-            cex_inflow_usd=lambda data: data["amount_usd"].where(data["direction"] == "inflow", 0.0),
-            cex_outflow_usd=lambda data: data["amount_usd"].where(data["direction"] == "outflow", 0.0),
+            cex_inflow_usd=lambda data: data["amount_usd"].where(
+                data["direction"] == "inflow", 0.0
+            ),
+            cex_outflow_usd=lambda data: data["amount_usd"].where(
+                data["direction"] == "outflow", 0.0
+            ),
             whale_transfer_count=lambda data: data["is_whale"].astype(float),
         )
         .groupby("open_time", as_index=False)

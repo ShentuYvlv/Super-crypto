@@ -35,17 +35,25 @@ class PipelineStore:
             )
 
     def upsert_run(self, payload: dict[str, Any]) -> None:
+        query = (
+            "insert into pipeline_runs values (?, ?) "
+            "on conflict(run_id) do update set payload=excluded.payload"
+        )
         with self._connect() as conn:
             conn.execute(
-                "insert into pipeline_runs values (?, ?) on conflict(run_id) do update set payload=excluded.payload",
+                query,
                 (payload["run_id"], canonical_json(payload)),
             )
 
     def upsert_stage(self, payload: dict[str, Any]) -> None:
         stage_id = f"{payload['run_id']}:{payload['stage']}"
+        query = (
+            "insert into pipeline_stages values (?, ?) "
+            "on conflict(stage_id) do update set payload=excluded.payload"
+        )
         with self._connect() as conn:
             conn.execute(
-                "insert into pipeline_stages values (?, ?) on conflict(stage_id) do update set payload=excluded.payload",
+                query,
                 (stage_id, canonical_json(payload)),
             )
 

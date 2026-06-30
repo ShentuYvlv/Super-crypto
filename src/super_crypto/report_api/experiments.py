@@ -8,12 +8,13 @@ from super_crypto.report_api.deps import envelope, experiment_store
 from super_crypto.report_api.loaders import (
     artifact_url,
     frame_to_records,
-    list_experiments as load_experiments,
     list_signals,
     read_yaml_if_exists,
 )
+from super_crypto.report_api.loaders import (
+    list_experiments as load_experiments,
+)
 from super_crypto.validation.robustness import by_month, by_symbol
-
 
 router = APIRouter(prefix="/api/experiments", tags=["experiments"])
 
@@ -69,9 +70,15 @@ def get_experiment(experiment_id: str):
         "signals": signals,
         "trades": trades,
         "equity_curve": frame_to_records(curve[["exit_time", "equity"]]) if not curve.empty else [],
-        "drawdown_curve": frame_to_records(curve[["exit_time", "drawdown"]]) if not curve.empty else [],
-        "by_symbol": by_symbol(trades_frame).to_dict(orient="records") if not trades_frame.empty else [],
-        "by_month": by_month(trades_frame).to_dict(orient="records") if not trades_frame.empty else [],
+        "drawdown_curve": frame_to_records(curve[["exit_time", "drawdown"]])
+        if not curve.empty
+        else [],
+        "by_symbol": by_symbol(trades_frame).to_dict(orient="records")
+        if not trades_frame.empty
+        else [],
+        "by_month": by_month(trades_frame).to_dict(orient="records")
+        if not trades_frame.empty
+        else [],
         "vectorbt_diff": _vectorbt_diff(experiment),
         "config_view": {
             "experiment": read_yaml_if_exists(experiment.get("config_path")),

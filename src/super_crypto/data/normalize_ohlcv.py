@@ -4,7 +4,6 @@ from typing import Any
 
 import polars as pl
 
-
 KLINE_COLUMNS = [
     "open_time",
     "open",
@@ -66,4 +65,3 @@ def normalize_klines(symbol: str, timeframe: str, rows: list[list[Any]]) -> pl.D
         "taker_buy_base_volume",
         "taker_buy_quote_volume",
     )
-

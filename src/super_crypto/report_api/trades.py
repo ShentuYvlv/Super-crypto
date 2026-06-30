@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException
 from super_crypto.report_api.deps import envelope, experiment_store
 from super_crypto.report_api.loaders import frame_to_records, load_paper_trades, load_symbol_ohlcv
 
-
 router = APIRouter(tags=["trades"])
 
 
@@ -52,4 +51,6 @@ def get_trade(trade_id: str):
 
 @router.get("/api/paper-trades")
 def list_paper_trades():
-    return envelope(sorted(load_paper_trades(), key=lambda item: item.get("entry_time", ""), reverse=True))
+    return envelope(
+        sorted(load_paper_trades(), key=lambda item: item.get("entry_time", ""), reverse=True)
+    )

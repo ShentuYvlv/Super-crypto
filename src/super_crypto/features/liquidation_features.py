@@ -36,6 +36,8 @@ def add_liquidation_analysis_fields(
         direction="backward",
     )
     total = result["liq_long_usd"] + result["liq_short_usd"]
-    result["liq_imbalance"] = ((result["liq_short_usd"] - result["liq_long_usd"]) / total.replace(0, pd.NA)).fillna(0.0)
+    result["liq_imbalance"] = (
+        (result["liq_short_usd"] - result["liq_long_usd"]) / total.replace(0, pd.NA)
+    ).fillna(0.0)
     result["liquidation_data_quality"] = "healthy"
     return result

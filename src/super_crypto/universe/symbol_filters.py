@@ -17,4 +17,3 @@ def apply_symbol_filters(
             continue
         results.append(symbol)
     return results
-

@@ -30,9 +30,13 @@ def score_candidate_filter(
     feature_columns: list[str] | None = None,
     model_path: str | None = None,
 ) -> LightGBMFilterResult:
-    columns = [column for column in (feature_columns or DEFAULT_FEATURE_COLUMNS) if column in frame.columns]
+    columns = [
+        column for column in (feature_columns or DEFAULT_FEATURE_COLUMNS) if column in frame.columns
+    ]
     if not columns:
-        return LightGBMFilterResult(enabled=False, feature_columns=[], scores=[], reason="no_feature_columns")
+        return LightGBMFilterResult(
+            enabled=False, feature_columns=[], scores=[], reason="no_feature_columns"
+        )
     try:
         import lightgbm as lgb  # type: ignore[import-not-found]
     except ImportError:

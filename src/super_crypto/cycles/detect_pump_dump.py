@@ -40,9 +40,7 @@ def detect_cycles(frame: pd.DataFrame, symbol: str, config: dict) -> list[CycleR
             continue
         last_peak_time = peak_row["open_time"]
         cycle_id = sha1(
-            f"{symbol}|{start_row['open_time']}|{peak_row['open_time']}|{trough_row['open_time']}".encode(
-                "utf-8"
-            )
+            f"{symbol}|{start_row['open_time']}|{peak_row['open_time']}|{trough_row['open_time']}".encode()
         ).hexdigest()[:12]
         cycles.append(
             CycleRecord(
@@ -59,4 +57,3 @@ def detect_cycles(frame: pd.DataFrame, symbol: str, config: dict) -> list[CycleR
             )
         )
     return cycles
-

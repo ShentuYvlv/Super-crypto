@@ -18,9 +18,7 @@ def add_price_features(
         / result["low"].rolling(lookback_bars, min_periods=2).min()
         - 1
     ).fillna(0.0)
-    result["rolling_peak"] = (
-        result["high"].rolling(peak_window, min_periods=2).max().shift(1)
-    )
+    result["rolling_peak"] = result["high"].rolling(peak_window, min_periods=2).max().shift(1)
     result["support_level"] = _support_level(result, support_window, support_type)
     result["drawdown_from_peak"] = (result["close"] / result["rolling_peak"] - 1).fillna(0.0)
     result["lower_high"] = result["high"] < result["high"].shift(1).rolling(2).max()

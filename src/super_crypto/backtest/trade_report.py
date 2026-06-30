@@ -15,4 +15,3 @@ def write_csv(trades: pd.DataFrame, path: Path) -> str:
     ensure_parent(path)
     trades.to_csv(path, index=False)
     return str(path)
-

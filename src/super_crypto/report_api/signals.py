@@ -12,7 +12,6 @@ from super_crypto.report_api.loaders import (
     load_symbol_orderbook,
 )
 
-
 router = APIRouter(prefix="/api/signals", tags=["signals"])
 
 
@@ -57,7 +56,9 @@ def get_signal(signal_id: str):
             "snapshot_time": latest_orderbook.get("snapshot_time") if latest_orderbook else None,
             "spread_bps": latest_orderbook.get("spread_bps") if latest_orderbook else None,
             "imbalance": latest_orderbook.get("imbalance") if latest_orderbook else None,
-            "slippage_bps_sell": latest_orderbook.get("slippage_bps_sell") if latest_orderbook else {},
+            "slippage_bps_sell": latest_orderbook.get("slippage_bps_sell")
+            if latest_orderbook
+            else {},
         },
         "webhook_payload": {
             "symbol": signal["symbol"],

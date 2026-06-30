@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-import polars as pl
-
 from super_crypto.common.config import load_yaml
 from super_crypto.common.paths import DATA_ROOT, ensure_parent
 from super_crypto.data.binance_client import BinanceFuturesClient
@@ -18,7 +14,9 @@ def run(config_path: str, symbols: list[str] | None = None) -> dict:
         for symbol in selected_symbols:
             history = client.funding_rate_history(symbol)
             frame = normalize_funding(symbol, history)
-            raw_path = ensure_parent(DATA_ROOT / "raw" / "binance" / "funding" / f"{symbol}.parquet")
+            raw_path = ensure_parent(
+                DATA_ROOT / "raw" / "binance" / "funding" / f"{symbol}.parquet"
+            )
             processed_path = ensure_parent(
                 DATA_ROOT / "processed" / "derivatives" / f"funding_{symbol}.parquet"
             )
@@ -26,4 +24,3 @@ def run(config_path: str, symbols: list[str] | None = None) -> dict:
             frame.write_parquet(processed_path)
             result[symbol] = frame.height
     return result
-

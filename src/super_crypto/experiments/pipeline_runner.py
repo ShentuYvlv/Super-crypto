@@ -259,17 +259,12 @@ def run_pipeline(
                     cycle_frames.append(frame)
                     symbol = cycle_path.stem
                     oi_path = (
-                        DATA_ROOT
-                        / "processed"
-                        / "derivatives"
-                        / f"open_interest_{symbol}.parquet"
+                        DATA_ROOT / "processed" / "derivatives" / f"open_interest_{symbol}.parquet"
                     )
                     if oi_path.exists():
                         derivatives[symbol] = pd.read_parquet(oi_path)
                 cycles = (
-                    pd.concat(cycle_frames, ignore_index=True)
-                    if cycle_frames
-                    else pd.DataFrame()
+                    pd.concat(cycle_frames, ignore_index=True) if cycle_frames else pd.DataFrame()
                 )
                 scores = score_symbols(
                     cycles,

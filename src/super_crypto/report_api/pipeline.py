@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException
 from super_crypto.report_api.deps import envelope, pipeline_store
 from super_crypto.report_api.loaders import list_pipeline_runs
 
-
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
 

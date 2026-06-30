@@ -1,2 +1,1 @@
 """AutoResearch helper modules."""
-

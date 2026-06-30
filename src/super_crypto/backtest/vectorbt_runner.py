@@ -20,12 +20,17 @@ def run_parameter_grid(
     backtest_kwargs: dict,
 ) -> list[dict]:
     keys = list(parameter_grid.keys())
-    combos = [dict(zip(keys, values, strict=True)) for values in product(*(parameter_grid[key] for key in keys))]
+    combos = [
+        dict(zip(keys, values, strict=True))
+        for values in product(*(parameter_grid[key] for key in keys))
+    ]
     results = []
     for combo in combos:
         signals = signal_factory(**signal_kwargs, config={**signal_kwargs["config"], **combo})
         trades = run_event_backtest(ohlcv, signals, **backtest_kwargs)
-        metrics = summarize_metrics(pd.DataFrame([trade.model_dump(mode="json") for trade in trades]))
+        metrics = summarize_metrics(
+            pd.DataFrame([trade.model_dump(mode="json") for trade in trades])
+        )
         results.append({"params": combo, "metrics": metrics.model_dump()})
     return results
 
@@ -42,7 +47,11 @@ def _metric_float(value: Any) -> float:
 
 
 def _timestamp(value: Any) -> pd.Timestamp:
-    return pd.Timestamp(value).tz_convert("UTC") if pd.Timestamp(value).tzinfo else pd.Timestamp(value).tz_localize("UTC")
+    return (
+        pd.Timestamp(value).tz_convert("UTC")
+        if pd.Timestamp(value).tzinfo
+        else pd.Timestamp(value).tz_localize("UTC")
+    )
 
 
 def run_vectorbt_benchmark(
@@ -138,7 +147,13 @@ def run_vectorbt_benchmark(
             "engine": "vectorbt",
             "version": getattr(vbt, "__version__", "unknown"),
             "split": split,
-            "metrics": {"net_return": 0.0, "max_drawdown": 0.0, "sharpe": 0.0, "sortino": 0.0, "trade_count": 0},
+            "metrics": {
+                "net_return": 0.0,
+                "max_drawdown": 0.0,
+                "sharpe": 0.0,
+                "sortino": 0.0,
+                "trade_count": 0,
+            },
             "per_symbol": [],
             "comment": "No vectorbt benchmark entries were generated.",
         }
@@ -146,8 +161,16 @@ def run_vectorbt_benchmark(
     combined = pd.concat(equity_curves, axis=1).ffill().fillna(init_cash).sum(axis=1)
     returns = combined.pct_change().replace([np.inf, -np.inf], np.nan).dropna()
     downside = returns[returns < 0]
-    sharpe = 0.0 if returns.empty or returns.std() == 0 else float(returns.mean() / returns.std() * np.sqrt(len(returns)))
-    sortino = 0.0 if downside.empty or downside.std() == 0 else float(returns.mean() / downside.std() * np.sqrt(len(returns)))
+    sharpe = (
+        0.0
+        if returns.empty or returns.std() == 0
+        else float(returns.mean() / returns.std() * np.sqrt(len(returns)))
+    )
+    sortino = (
+        0.0
+        if downside.empty or downside.std() == 0
+        else float(returns.mean() / downside.std() * np.sqrt(len(returns)))
+    )
     drawdown = combined / combined.cummax() - 1
     return {
         "status": "available",

@@ -32,11 +32,20 @@ def merge_derivatives(
             direction="backward",
         )
         for window in (1, 6, 24):
-            result[f"oi_change_{window}h"] = result["oi_level"].pct_change(window, fill_method=None).fillna(0.0)
-        result["oi_acceleration"] = (
-            result["oi_change_1h"] - result["oi_change_6h"] / 6.0
-        ).fillna(0.0)
+            result[f"oi_change_{window}h"] = (
+                result["oi_level"].pct_change(window, fill_method=None).fillna(0.0)
+            )
+        result["oi_acceleration"] = (result["oi_change_1h"] - result["oi_change_6h"] / 6.0).fillna(
+            0.0
+        )
     else:
-        for column in ["oi_level", "oi_value_usd", "oi_change_1h", "oi_change_6h", "oi_change_24h", "oi_acceleration"]:
+        for column in [
+            "oi_level",
+            "oi_value_usd",
+            "oi_change_1h",
+            "oi_change_6h",
+            "oi_change_24h",
+            "oi_acceleration",
+        ]:
             result[column] = 0.0
     return result

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 
 from super_crypto.common.config import canonical_json, hash_payload, load_yaml
@@ -10,7 +8,11 @@ from super_crypto.common.time import parse_timestamp
 
 
 def read_symbol_split_file(path: str) -> list[str]:
-    return [line.strip() for line in resolve_project_path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        line.strip()
+        for line in resolve_project_path(path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def build_split_manifest(config_path: str) -> dict:

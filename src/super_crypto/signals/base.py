@@ -24,7 +24,7 @@ def build_signal(
     stale_fields: list[str] | None = None,
 ) -> SignalRecord:
     decision_time = parse_timestamp(bar["open_time"]).to_pydatetime()
-    signal_id = sha1(f"{symbol}|{strategy}|{decision_time.isoformat()}".encode("utf-8")).hexdigest()[:12]
+    signal_id = sha1(f"{symbol}|{strategy}|{decision_time.isoformat()}".encode()).hexdigest()[:12]
     return SignalRecord(
         signal_id=signal_id,
         symbol=symbol,
@@ -44,4 +44,3 @@ def build_signal(
         stale_fields=stale_fields or [],
         orderbook_slippage_bps=orderbook_slippage_bps,
     )
-

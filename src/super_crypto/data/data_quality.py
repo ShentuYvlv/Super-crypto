@@ -48,19 +48,11 @@ def summarize_ohlcv_quality(frame: pl.DataFrame, timeframe: str, max_gap_minutes
             "quality": "failed",
         }
     sorted_frame = frame.sort("open_time")
-    deltas = (
-        sorted_frame.select(
-            pl.col("open_time")
-            .diff()
-            .dt.total_minutes()
-            .alias("gap_minutes")
-        )
-        .drop_nulls()
-    )
+    deltas = sorted_frame.select(
+        pl.col("open_time").diff().dt.total_minutes().alias("gap_minutes")
+    ).drop_nulls()
     max_gap = deltas["gap_minutes"].max() if not deltas.is_empty() else 0
-    duplicate_count = (
-        sorted_frame.group_by("open_time").len().filter(pl.col("len") > 1).height
-    )
+    duplicate_count = sorted_frame.group_by("open_time").len().filter(pl.col("len") > 1).height
     quality = "healthy"
     if duplicate_count:
         quality = "partial"
@@ -74,4 +66,3 @@ def summarize_ohlcv_quality(frame: pl.DataFrame, timeframe: str, max_gap_minutes
         "timezone": "UTC",
         "quality": quality,
     }
-

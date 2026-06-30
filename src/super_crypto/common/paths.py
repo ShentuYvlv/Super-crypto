@@ -3,14 +3,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SRC_ROOT = PROJECT_ROOT / "src"
 DATA_ROOT = PROJECT_ROOT / os.environ.get("SUPER_CRYPTO_DATA_DIR", "data")
 DB_PATH = PROJECT_ROOT / os.environ.get("SUPER_CRYPTO_DB_PATH", "data/super_crypto.db")
-REPORT_ROOT = PROJECT_ROOT / os.environ.get(
-    "SUPER_CRYPTO_REPORT_DIR", "data/processed/reports"
-)
+REPORT_ROOT = PROJECT_ROOT / os.environ.get("SUPER_CRYPTO_REPORT_DIR", "data/processed/reports")
 DASHBOARD_ROOT = PROJECT_ROOT / "dashboard"
 DASHBOARD_OUT = DASHBOARD_ROOT / "out"
 

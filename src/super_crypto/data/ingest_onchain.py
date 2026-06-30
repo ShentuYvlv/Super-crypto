@@ -25,4 +25,3 @@ def run(address: str, symbol: str) -> dict:
         )
         frame.write_parquet(processed)
         return {"rows": frame.height, "enabled": client.enabled}
-

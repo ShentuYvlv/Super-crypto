@@ -28,4 +28,3 @@ def generate(frame: pd.DataFrame, symbol: str, config: dict, bucket: str = "medi
             )
         )
     return signals
-

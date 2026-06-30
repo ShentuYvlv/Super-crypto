@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from super_crypto.common.paths import DATA_ROOT, ensure_parent
 
@@ -17,4 +16,3 @@ def read_cache_status(name: str) -> dict | None:
     if not path.exists():
         return None
     return json.loads(path.read_text(encoding="utf-8"))
-

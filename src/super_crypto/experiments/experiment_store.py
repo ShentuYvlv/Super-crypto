@@ -49,16 +49,24 @@ class ExperimentStore:
 
     def upsert(self, table: str, key: str, payload: dict[str, Any]) -> None:
         identifier = payload[key]
+        query = (
+            f"insert into {table} values (?, ?) "
+            f"on conflict({key}) do update set payload=excluded.payload"
+        )
         with self._connect() as conn:
             conn.execute(
-                f"insert into {table} values (?, ?) on conflict({key}) do update set payload=excluded.payload",
+                query,
                 (identifier, canonical_json(payload)),
             )
 
     def bulk_upsert(self, table: str, key: str, payloads: list[dict[str, Any]]) -> None:
+        query = (
+            f"insert into {table} values (?, ?) "
+            f"on conflict({key}) do update set payload=excluded.payload"
+        )
         with self._connect() as conn:
             conn.executemany(
-                f"insert into {table} values (?, ?) on conflict({key}) do update set payload=excluded.payload",
+                query,
                 [(item[key], canonical_json(item)) for item in payloads],
             )
 
@@ -69,9 +77,7 @@ class ExperimentStore:
 
     def get_payload(self, table: str, key: str, value: str) -> dict[str, Any] | None:
         with self._connect() as conn:
-            row = conn.execute(
-                f"select payload from {table} where {key} = ?", (value,)
-            ).fetchone()
+            row = conn.execute(f"select payload from {table} where {key} = ?", (value,)).fetchone()
         return json.loads(row["payload"]) if row else None
 
     def record_holdout_audit(self, payload: dict[str, Any]) -> None:
