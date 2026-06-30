@@ -80,6 +80,50 @@ class ExperimentStore:
             row = conn.execute(f"select payload from {table} where {key} = ?", (value,)).fetchone()
         return json.loads(row["payload"]) if row else None
 
+    def delete_payloads(self, table: str, key: str, values: list[str]) -> int:
+        if not values:
+            return 0
+        placeholders = ",".join("?" for _ in values)
+        with self._connect() as conn:
+            cursor = conn.execute(
+                f"delete from {table} where {key} in ({placeholders})",
+                values,
+            )
+        return int(cursor.rowcount)
+
+    def delete_experiment_bundle(self, experiment_ids: list[str]) -> dict[str, int]:
+        unique_ids = sorted(set(experiment_ids))
+        if not unique_ids:
+            return {"experiments": 0, "trades": 0, "signals": 0}
+        experiments = [
+            item
+            for item in self.list_payloads("experiments")
+            if item.get("experiment_id") in unique_ids
+        ]
+        trades = self.list_payloads("trades")
+        deleted_trades = [
+            trade for trade in trades if trade.get("experiment_id") in unique_ids
+        ]
+        deleted_trade_ids = [trade["trade_id"] for trade in deleted_trades]
+        deleted_signal_ids = {
+            trade["signal_id"] for trade in deleted_trades if trade.get("signal_id")
+        }
+        remaining_signal_ids = {
+            trade["signal_id"]
+            for trade in trades
+            if trade.get("experiment_id") not in unique_ids and trade.get("signal_id")
+        }
+        orphan_signal_ids = sorted(deleted_signal_ids - remaining_signal_ids)
+        return {
+            "experiments": self.delete_payloads(
+                "experiments",
+                "experiment_id",
+                [experiment["experiment_id"] for experiment in experiments],
+            ),
+            "trades": self.delete_payloads("trades", "trade_id", deleted_trade_ids),
+            "signals": self.delete_payloads("signals", "signal_id", orphan_signal_ids),
+        }
+
     def record_holdout_audit(self, payload: dict[str, Any]) -> None:
         with self._connect() as conn:
             conn.execute(

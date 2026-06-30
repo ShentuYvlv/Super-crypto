@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import pandas as pd
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from super_crypto.backtest.metrics import equity_curve
+from super_crypto.common.paths import REPORT_ROOT
 from super_crypto.report_api.deps import envelope, experiment_store
 from super_crypto.report_api.loaders import (
     artifact_url,
@@ -17,6 +22,43 @@ from super_crypto.report_api.loaders import (
 from super_crypto.validation.robustness import by_month, by_symbol
 
 router = APIRouter(prefix="/api/experiments", tags=["experiments"])
+
+
+class DeleteExperimentsRequest(BaseModel):
+    experiment_ids: list[str] = Field(min_length=1, max_length=200)
+    delete_artifacts: bool = True
+
+
+def _delete_artifacts(experiments: list[dict[str, Any]]) -> dict[str, int]:
+    deleted_files = 0
+    deleted_dirs = 0
+    report_root = REPORT_ROOT.resolve()
+    for experiment in experiments:
+        candidates = [
+            experiment.get("report_path"),
+            experiment.get("markdown_report_path"),
+            experiment.get("trade_log_path"),
+        ]
+        touched_dirs: set[Path] = set()
+        for candidate in candidates:
+            if not candidate:
+                continue
+            path = Path(candidate).resolve()
+            try:
+                path.relative_to(report_root)
+            except ValueError:
+                continue
+            if path.is_file():
+                path.unlink()
+                deleted_files += 1
+                touched_dirs.add(path.parent)
+        for directory in sorted(touched_dirs, key=lambda item: len(item.parts), reverse=True):
+            try:
+                directory.rmdir()
+                deleted_dirs += 1
+            except OSError:
+                pass
+    return {"artifact_files": deleted_files, "artifact_dirs": deleted_dirs}
 
 
 def _vectorbt_diff(experiment: dict) -> dict:
@@ -46,6 +88,32 @@ def _vectorbt_diff(experiment: dict) -> dict:
 def list_experiments():
     payload = load_experiments()
     return envelope(payload)
+
+
+@router.delete("")
+def delete_experiments(request: DeleteExperimentsRequest):
+    store = experiment_store()
+    unique_ids = sorted(set(request.experiment_ids))
+    experiments = [
+        experiment
+        for experiment in store.list_payloads("experiments")
+        if experiment.get("experiment_id") in unique_ids
+    ]
+    if not experiments:
+        raise HTTPException(status_code=404, detail="No matching experiments found")
+    artifact_counts = (
+        _delete_artifacts(experiments)
+        if request.delete_artifacts
+        else {"artifact_files": 0, "artifact_dirs": 0}
+    )
+    deleted_counts = store.delete_experiment_bundle(unique_ids)
+    return envelope(
+        {
+            "requested": len(unique_ids),
+            "deleted": {**deleted_counts, **artifact_counts},
+            "deleted_experiment_ids": [experiment["experiment_id"] for experiment in experiments],
+        }
+    )
 
 
 @router.get("/{experiment_id}")

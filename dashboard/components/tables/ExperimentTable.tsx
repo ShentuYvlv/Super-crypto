@@ -85,18 +85,45 @@ const columns = [
 export function ExperimentTable({
   data,
   onRowClick,
-  activeExperimentId
+  activeExperimentId,
+  editing = false,
+  selectedExperimentIds = new Set<string>(),
+  onToggleExperiment
 }: {
   data: Experiment[];
   onRowClick?: (row: Experiment) => void;
   activeExperimentId?: string;
+  editing?: boolean;
+  selectedExperimentIds?: Set<string>;
+  onToggleExperiment?: (experimentId: string) => void;
 }) {
+  const tableColumns = editing
+    ? [
+        columnHelper.display({
+          id: "selection",
+          header: "选择",
+          cell: ({ row }) => (
+            <input
+              type="checkbox"
+              checked={selectedExperimentIds.has(row.original.experiment_id)}
+              onChange={() => onToggleExperiment?.(row.original.experiment_id)}
+              onClick={(event) => event.stopPropagation()}
+              className="h-4 w-4 rounded border-border bg-canvas accent-accent"
+              aria-label={`选择实验 ${row.original.experiment_id}`}
+            />
+          )
+        }),
+        ...columns
+      ]
+    : columns;
   return (
     <DataTable
       data={data}
-      columns={columns}
-      onRowClick={onRowClick}
-      isRowActive={(row) => row.experiment_id === activeExperimentId}
+      columns={tableColumns}
+      onRowClick={editing ? undefined : onRowClick}
+      isRowActive={(row) =>
+        selectedExperimentIds.has(row.experiment_id) || row.experiment_id === activeExperimentId
+      }
     />
   );
 }

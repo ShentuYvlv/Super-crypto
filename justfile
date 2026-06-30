@@ -1,23 +1,33 @@
 set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
 set shell := ["sh", "-cu"]
 
-research:
-  uv run python -m super_crypto.cli pipeline --config configs/pipeline_v4a.yaml --split train_validation
+research config="configs/pipeline_v4a.yaml" split="train_validation":
+  @echo "research: pipeline_config={{config}} split={{split}}"
+  uv run python -m super_crypto.cli pipeline --config {{config}} --split {{split}}
 
-loopresearch:
-  uv run python -m super_crypto.cli autoresearch --config configs/experiment_v4a.yaml
+experiment config="configs/experiment_v4a.yaml" split="validation":
+  @echo "experiment: experiment_config={{config}} split={{split}}"
+  uv run python -m super_crypto.cli run --config {{config}} --split {{split}}
 
-loopresearch-local:
-  uv run python -m super_crypto.cli autoresearch --config configs/experiment_v4a.yaml --no-llm
+loopresearch config="configs/experiment_v4a.yaml" max_runs="3":
+  @echo "loopresearch: experiment_config={{config}} llm=auto max_runs={{max_runs}}"
+  uv run python -m super_crypto.cli autoresearch --config {{config}} --max-runs {{max_runs}}
 
-holdout:
-  uv run python -m super_crypto.cli pipeline --config configs/pipeline_v4a.yaml --split holdout --final
+loopresearch-local config="configs/experiment_v4a.yaml" max_runs="3":
+  @echo "loopresearch-local: experiment_config={{config}} llm=off max_runs={{max_runs}}"
+  uv run python -m super_crypto.cli autoresearch --config {{config}} --max-runs {{max_runs}} --no-llm
 
-resume:
-  uv run python -m super_crypto.cli pipeline --config configs/pipeline_v4a.yaml --resume
+holdout config="configs/pipeline_v4a.yaml":
+  @echo "holdout: pipeline_config={{config}} split=holdout final=true"
+  uv run python -m super_crypto.cli pipeline --config {{config}} --split holdout --final
 
-scan:
-  uv run python -m super_crypto.cli scanner --config configs/scanner.yaml --once
+resume config="configs/pipeline_v4a.yaml":
+  @echo "resume: pipeline_config={{config}}"
+  uv run python -m super_crypto.cli pipeline --config {{config}} --resume
+
+scan config="configs/scanner.yaml":
+  @echo "scan: scanner_config={{config}}"
+  uv run python -m super_crypto.cli scanner --config {{config}} --once
 
 dashboard:
   uv run python -m super_crypto.cli report serve --host 127.0.0.1 --port 8000
