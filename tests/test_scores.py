@@ -98,7 +98,7 @@ def test_manipulation_score_derivatives_are_cut_to_cutoff():
 
 
 def test_experiment_score_cutoff_uses_split_end():
-    split_config = load_yaml("configs/splits.yaml")
+    split_config = load_yaml("configs/pipeline_v4a.yaml")["splits"]
     assert (
         _score_cutoff_for_split("train_validation").isoformat()
         == split_config["validation"]["end"].isoformat()

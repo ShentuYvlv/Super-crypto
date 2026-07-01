@@ -1,7 +1,0 @@
-timeframe: 15m
-pump_threshold_min: 0.20
-pump_threshold_max: 0.50
-dump_retrace_ratio: 0.55
-max_cycle_hours: 96
-dedupe_gap_hours: 6
-

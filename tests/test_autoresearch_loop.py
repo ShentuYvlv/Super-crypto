@@ -5,9 +5,11 @@ from pathlib import Path
 
 import pytest
 import yaml
+from fastapi.testclient import TestClient
 
 from super_crypto.autoresearch import agent_loop
 from super_crypto.autoresearch import artifacts as autoresearch_artifacts
+from super_crypto.reports import report_server
 from super_crypto.report_api import autoresearch as autoresearch_api
 
 
@@ -229,3 +231,32 @@ def test_delete_autoresearch_runs_removes_artifacts_and_clears_experiment_links(
     assert response["payload"]["cleared_experiments"] == 1
     assert store.cleared == ["run-a"]
     assert not run_dir.exists()
+
+
+def test_report_server_allows_autoresearch_delete_before_static_mount(tmp_path, monkeypatch):
+    class FakeStore:
+        def clear_autoresearch_runs(self, run_ids: list[str]) -> int:
+            return len(run_ids)
+
+    dashboard_out = tmp_path / "dashboard"
+    dashboard_out.mkdir()
+    (dashboard_out / "index.html").write_text("<html></html>", encoding="utf-8")
+    report_root = tmp_path / "reports"
+    report_root.mkdir()
+    run_dir = tmp_path / "processed" / "autoresearch" / "runs" / "run-a"
+    run_dir.mkdir(parents=True)
+    (run_dir / "manifest.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(report_server, "ensure_dashboard_built", lambda: None)
+    monkeypatch.setattr(report_server, "DASHBOARD_OUT", dashboard_out)
+    monkeypatch.setattr(report_server, "REPORT_ROOT", report_root)
+    monkeypatch.setattr(autoresearch_artifacts, "DATA_ROOT", tmp_path)
+    monkeypatch.setattr(autoresearch_api, "experiment_store", lambda: FakeStore())
+
+    response = TestClient(report_server.create_server_app()).request(
+        "DELETE",
+        "/api/autoresearch/runs",
+        json={"run_ids": ["run-a"]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["payload"]["deleted_run_ids"] == ["run-a"]

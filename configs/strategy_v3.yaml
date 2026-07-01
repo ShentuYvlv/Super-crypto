@@ -1,7 +1,0 @@
-strategy: V3
-timeframe: 1h
-drop_threshold: 0.05
-consecutive_bars: 2
-trailing_stop_pct: 0.03
-stop_loss_pct: 0.025
-

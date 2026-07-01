@@ -193,7 +193,15 @@ def run_loop(
         plan = _llm_plan(client, config_path=config_path, hypothesis=hypothesis, fallback_plan=fallback_plan)
         validation_config_path = write_experiment_variant(config_path, plan)
         validation_split = "validation"
-        holdout_guard("configs/splits.yaml", validation_split, final_flag=False)
+        try:
+            validation_config = load_yaml(validation_config_path)
+        except FileNotFoundError:
+            validation_config = load_yaml(config_path)
+        holdout_guard(
+            validation_config.get("splits") or load_yaml("configs/pipeline_v4a.yaml")["splits"],
+            validation_split,
+            final_flag=False,
+        )
         validation_result = run_experiment(validation_config_path, validation_split, final_flag=False)
         validation_experiment = validation_result["experiment"]
         validation_experiment.update(

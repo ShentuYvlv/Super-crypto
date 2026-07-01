@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import pandas as pd
 
 from super_crypto.common.config import canonical_json, hash_payload, load_yaml
@@ -15,13 +18,24 @@ def read_symbol_split_file(path: str) -> list[str]:
     ]
 
 
-def build_split_manifest(config_path: str) -> dict:
-    config = load_yaml(config_path)
+def _load_split_config(config: str | Path | dict[str, Any]) -> dict[str, Any]:
+    loaded = config if isinstance(config, dict) else load_yaml(config)
+    return loaded["splits"] if isinstance(loaded.get("splits"), dict) else loaded
+
+
+def _symbols_for_split(config: dict[str, Any], split: str) -> list[str]:
+    if "symbols" in config[split]:
+        return list(config[split]["symbols"])
+    return read_symbol_split_file(config["symbol_split_files"][split])
+
+
+def build_split_manifest(config_path: str | Path | dict[str, Any]) -> dict:
+    config = _load_split_config(config_path)
     manifest = {
         split: {
             "start": config[split]["start"],
             "end": config[split]["end"],
-            "symbols": read_symbol_split_file(config["symbol_split_files"][split]),
+            "symbols": _symbols_for_split(config, split),
         }
         for split in ("train", "validation", "holdout")
     }
@@ -33,15 +47,19 @@ def build_split_manifest(config_path: str) -> dict:
     return manifest
 
 
-def filter_frame_for_split(frame: pd.DataFrame, config_path: str, split: str) -> pd.DataFrame:
-    config = load_yaml(config_path)
+def filter_frame_for_split(
+    frame: pd.DataFrame,
+    config_path: str | Path | dict[str, Any],
+    split: str,
+) -> pd.DataFrame:
+    config = _load_split_config(config_path)
     if split == "train_validation":
         train = filter_frame_for_split(frame, config_path, "train")
         validation = filter_frame_for_split(frame, config_path, "validation")
         return pd.concat([train, validation], ignore_index=True)
     start = parse_timestamp(config[split]["start"])
     end = parse_timestamp(config[split]["end"])
-    allowed_symbols = set(read_symbol_split_file(config["symbol_split_files"][split]))
+    allowed_symbols = set(_symbols_for_split(config, split))
     result = frame.copy()
     result["open_time"] = pd.to_datetime(result["open_time"], utc=True)
     return result[
@@ -51,17 +69,22 @@ def filter_frame_for_split(frame: pd.DataFrame, config_path: str, split: str) ->
     ].reset_index(drop=True)
 
 
-def split_hash(config_path: str) -> str:
+def split_hash(config_path: str | Path | dict[str, Any]) -> str:
     manifest_path = DATA_ROOT / "processed" / "split_manifest.json"
-    if manifest_path.exists():
+    if not isinstance(config_path, dict) and manifest_path.exists():
         return hash_payload(__import__("json").loads(manifest_path.read_text(encoding="utf-8")))
     return build_split_manifest(config_path)["split_hash"]
 
 
-def holdout_guard(config_path: str, split: str, final_flag: bool, prior_runs: int = 0) -> None:
+def holdout_guard(
+    config_path: str | Path | dict[str, Any],
+    split: str,
+    final_flag: bool,
+    prior_runs: int = 0,
+) -> None:
     if split != "holdout":
         return
-    config = load_yaml(config_path)["holdout_policy"]
+    config = _load_split_config(config_path)["holdout_policy"]
     if config["require_final_flag"] and not final_flag:
         raise ValueError("Holdout requires --final.")
     if prior_runs >= int(config["max_manual_runs"]):

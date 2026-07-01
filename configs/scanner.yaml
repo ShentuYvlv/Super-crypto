@@ -9,10 +9,30 @@ symbols:
   - ACTUSDT
   - WLDUSDT
 poll_interval_sec: 60
-strategy_configs:
-  - configs/strategy_v4a.yaml
-  - configs/strategy_v4b.yaml
-scores_config: configs/scores.yaml
-enrichment_config: configs/enrichment.yaml
-webhooks: {}
 dedupe_window_minutes: 120
+webhooks: {}
+
+strategies:
+  - strategy: V4A
+    timeframe: 15m
+    lookback_bars: 18
+    support_window: 6
+    support_type: rolling_low
+    peak_window: 12
+    first_sell_pressure_threshold: -0.01
+    support_break_threshold: 0.005
+    trailing_stop_pct: 0.15
+    stop_loss_pct: 0.15
+    max_hold_bars: 8
+  - strategy: V4B
+    timeframe: 1h
+    lookback_bars: 24
+    support_window: 8
+    support_type: rolling_low
+    peak_window: 16
+    first_sell_pressure_threshold: -0.015
+    support_break_threshold: 0.01
+    confirmation_bars: 2
+    trailing_stop_pct: 0.02
+    stop_loss_pct: 0.018
+    max_hold_bars: 12

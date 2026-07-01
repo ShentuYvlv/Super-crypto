@@ -46,8 +46,10 @@ def run(config_path: str, *, once: bool = False) -> dict:
     store = ExperimentStore()
     generated = []
     while True:
-        for strategy_config_path in config["strategy_configs"]:
-            strategy_config = load_yaml(strategy_config_path)
+        strategy_configs = config.get("strategies")
+        if not strategy_configs:
+            strategy_configs = [load_yaml(path) for path in config.get("strategy_configs", [])]
+        for strategy_config in strategy_configs:
             for symbol in config["symbols"]:
                 ohlcv = _load_frame(symbol)
                 if ohlcv.empty:

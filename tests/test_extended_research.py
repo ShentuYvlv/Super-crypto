@@ -49,7 +49,7 @@ def test_lightgbm_filter_is_optional(sample_ohlcv):
 
 def test_autoresearch_guard_blocks_protected_equivalent_paths():
     with pytest.raises(ValueError):
-        assert_allowed(["./configs/splits.yaml"])
+        assert_allowed(["./configs/pipeline_v4a.yaml"])
 
 
 def test_vectorbt_benchmark_reports_real_or_unavailable_state(sample_ohlcv):

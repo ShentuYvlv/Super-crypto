@@ -11,8 +11,22 @@ router = APIRouter(tags=["trades"])
 
 
 def _trade_marker(payload: dict) -> dict:
-    backtest_config = load_yaml("configs/backtest.yaml")
-    notional = float(backtest_config.get("capital_per_trade_usdt", 0.0))
+    notional = 1000.0
+    experiment_id = payload.get("experiment_id")
+    experiment = (
+        experiment_store().get_payload("experiments", "experiment_id", experiment_id)
+        if experiment_id
+        else None
+    )
+    if experiment:
+        try:
+            experiment_config = load_yaml(experiment.get("config_path", ""))
+            backtest_config = experiment_config.get("backtest") or load_yaml(
+                experiment.get("backtest_config_path", "")
+            )
+            notional = float(backtest_config.get("capital_per_trade_usdt", notional))
+        except Exception:
+            notional = 1000.0
     entry_price = float(payload.get("entry_price") or 0.0)
     exit_price = float(payload.get("exit_price") or 0.0)
     quantity = notional / entry_price if entry_price > 0 else 0.0

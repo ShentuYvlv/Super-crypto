@@ -22,7 +22,9 @@ def _expand_env(value: Any) -> Any:
     return value
 
 
-def load_yaml(path: str | Path) -> dict[str, Any]:
+def load_yaml(path: str | Path | dict[str, Any]) -> dict[str, Any]:
+    if isinstance(path, dict):
+        return _expand_env(path)
     file_path = resolve_project_path(path)
     with file_path.open("r", encoding="utf-8") as handle:
         loaded = yaml.safe_load(handle) or {}

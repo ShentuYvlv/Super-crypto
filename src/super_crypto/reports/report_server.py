@@ -62,9 +62,14 @@ def ensure_dashboard_built() -> None:
     _build_dashboard()
 
 
-def serve(host: str, port: int) -> None:
+def create_server_app():
     app = create_app()
     ensure_dashboard_built()
     app.mount("/artifacts", StaticFiles(directory=REPORT_ROOT, html=True), name="artifacts")
     app.mount("/", NoStoreStaticFiles(directory=DASHBOARD_OUT, html=True), name="dashboard")
+    return app
+
+
+def serve(host: str, port: int) -> None:
+    app = create_server_app()
     uvicorn.run(app, host=host, port=port)

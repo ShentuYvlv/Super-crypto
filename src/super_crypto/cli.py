@@ -4,11 +4,12 @@ from typing import Annotated
 
 import pandas as pd
 import typer
+import yaml
 
 from super_crypto.autoresearch.agent_loop import run_loop
 from super_crypto.common.config import load_yaml
 from super_crypto.common.logging import configure_logging
-from super_crypto.common.paths import DATA_ROOT
+from super_crypto.common.paths import DATA_ROOT, resolve_project_path
 from super_crypto.common.time import utc_now
 from super_crypto.cycles.seed_events import build_event_set
 from super_crypto.cycles.label_cycles import run as label_cycles
@@ -20,7 +21,7 @@ from super_crypto.data.ingest_open_interest import run as ingest_open_interest
 from super_crypto.data.ingest_orderbook import run as ingest_orderbook
 from super_crypto.experiments.experiment_store import ExperimentStore
 from super_crypto.experiments.pipeline_runner import run_pipeline
-from super_crypto.experiments.run_experiment import run as run_experiment
+from super_crypto.experiments.run_experiment import build_expanded_experiment_config, run as run_experiment
 from super_crypto.realtime.scanner import run as run_scanner
 from super_crypto.reports.report_server import serve
 from super_crypto.universe.manipulation_score import score_symbols, write_scores
@@ -32,6 +33,11 @@ report_app = typer.Typer(help="Report server and dashboard")
 app.add_typer(report_app, name="report")
 
 
+def _config_section(config_path: str, key: str) -> dict:
+    payload = load_yaml(config_path)
+    return payload.get(key, payload)
+
+
 @app.callback()
 def main_callback(verbose: bool = typer.Option(False, "--verbose")) -> None:
     configure_logging(verbose=verbose)
@@ -39,19 +45,20 @@ def main_callback(verbose: bool = typer.Option(False, "--verbose")) -> None:
 
 @app.command()
 def ingest(config: str = typer.Option(..., "--config")) -> None:
+    data_config = _config_section(config, "data")
     typer.echo(
         {
-            "market_snapshots": ingest_market_snapshots(config),
-            "klines": ingest_klines(config),
-            "funding": ingest_funding(config),
-            "open_interest": ingest_open_interest(config),
+            "market_snapshots": ingest_market_snapshots(data_config),
+            "klines": ingest_klines(data_config),
+            "funding": ingest_funding(data_config),
+            "open_interest": ingest_open_interest(data_config),
         }
     )
 
 
 @app.command("build-splits")
 def build_splits_command(config: str = typer.Option(..., "--config")) -> None:
-    typer.echo(build_split_manifest(config))
+    typer.echo(build_split_manifest(_config_section(config, "splits")))
 
 
 @app.command("detect-cycles")
@@ -59,13 +66,14 @@ def detect_cycles_command(
     config: str = typer.Option(..., "--config"),
     symbols: Annotated[list[str] | None, typer.Option()] = None,
 ) -> None:
-    data_config = load_yaml("configs/data.yaml")
-    typer.echo(label_cycles(config, symbols or data_config["symbols"]))
+    payload = load_yaml(config)
+    data_config = payload.get("data") or load_yaml("configs/pipeline_v4a.yaml")["data"]
+    typer.echo(label_cycles(payload.get("cycle", payload), symbols or data_config["symbols"]))
 
 
 @app.command("score-symbols")
 def score_symbols_command(config: str = typer.Option(..., "--config")) -> None:
-    score_config = load_yaml(config)
+    score_config = _config_section(config, "scores")
     cycles_dir = DATA_ROOT / "processed" / "cycles"
     derivatives_dir = DATA_ROOT / "processed" / "derivatives"
     cycle_frames = []
@@ -99,10 +107,11 @@ def enrich(
     config: str = typer.Option(..., "--config"),
     symbols: Annotated[list[str] | None, typer.Option()] = None,
 ) -> None:
+    enrichment_config = _config_section(config, "enrichment")
     typer.echo(
         {
-            "coinglass": ingest_coinglass(config, symbols=symbols),
-            "orderbook": ingest_orderbook(config, symbols=symbols),
+            "coinglass": ingest_coinglass(enrichment_config, symbols=symbols),
+            "orderbook": ingest_orderbook(enrichment_config, symbols=symbols),
         }
     )
 
@@ -113,8 +122,26 @@ def run(
     split: str = typer.Option(..., "--split"),
     final: bool = typer.Option(False, "--final"),
 ) -> None:
-    holdout_guard("configs/splits.yaml", split, final, ExperimentStore().holdout_run_count())
+    experiment_config = load_yaml(config)
+    splits_guard_config = experiment_config.get("splits") or experiment_config.get(
+        "splits_config",
+        load_yaml("configs/pipeline_v4a.yaml")["splits"],
+    )
+    holdout_guard(splits_guard_config, split, final, ExperimentStore().holdout_run_count())
     typer.echo(run_experiment(config, split, final_flag=final))
+
+
+@app.command("expand-experiment-config")
+def expand_experiment_config_command(
+    config: str = typer.Option(..., "--config"),
+    output: str = typer.Option(..., "--output"),
+) -> None:
+    expanded = build_expanded_experiment_config(config)
+    output_path = resolve_project_path(output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as handle:
+        yaml.safe_dump(expanded, handle, sort_keys=False, allow_unicode=True)
+    typer.echo({"output": str(output_path)})
 
 
 @app.command()
@@ -148,7 +175,7 @@ def scanner(
 
 @app.command()
 def autoresearch(
-    config: str = typer.Option("configs/experiment_v4a.yaml", "--config"),
+    config: str = typer.Option("configs/experiment_v4a_full.yaml", "--config"),
     autoresearch_config: str = typer.Option("configs/autoresearch.yaml", "--autoresearch-config"),
     max_runs: int | None = typer.Option(None, "--max-runs", min=1),
     no_llm: bool = typer.Option(False, "--no-llm"),

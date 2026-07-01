@@ -1,9 +1,10 @@
 forbidden:
-  - configs/splits.yaml
-  - configs/backtest.yaml
+  - configs/pipeline_v4a.yaml
+  - configs/experiment_v3_full.yaml
+  - configs/experiment_v4a_full.yaml
+  - configs/experiment_v4b_full.yaml
   - src/super_crypto/backtest/execution_costs.py
   - src/super_crypto/validation/leakage_checks.py
   - src/super_crypto/validation/splits.py
   - data/raw/
   - data/processed/holdout/
-

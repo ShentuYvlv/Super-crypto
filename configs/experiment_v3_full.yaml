@@ -1,0 +1,72 @@
+name: experiment_v3
+engine: event_driven
+minimum_trade_count: 20
+
+strategy:
+  strategy: V3
+  timeframe: 1h
+  drop_threshold: 0.05
+  consecutive_bars: 2
+  trailing_stop_pct: 0.03
+  stop_loss_pct: 0.025
+
+backtest:
+  capital_per_trade_usdt: 1000
+  fee_bps: 6
+  slippage_bps_floor: 25
+  funding_per_hour_cap_bps: 8
+  max_hold_hours:
+    v3: 12
+    v4a: 8
+    v4b: 12
+  orderbook_confidence_penalty: 0.12
+
+scores:
+  lookback_days: 90
+  decay_half_life_days: 21
+  weights:
+    cycle_frequency: 0.5
+    avg_pump_return: 0.15
+    avg_dump_return: 0.15
+    oi_momentum: 0.1
+    funding_extremes: 0.05
+    data_completeness: 0.05
+  buckets:
+    ultra_high: 85
+    high: 70
+    medium: 55
+    low: 0
+
+splits:
+  train:
+    start: 2026-04-27T00:00:00Z
+    end: 2026-05-31T23:59:59Z
+    symbols: &research_symbols
+      - MMTUSDT
+      - TUTUSDT
+      - WCTUSDT
+      - HEMIUSDT
+      - PROMPTUSDT
+      - VELVETUSDT
+      - TACUSDT
+      - ACTUSDT
+      - WLDUSDT
+  validation:
+    start: 2026-06-01T00:00:00Z
+    end: 2026-06-14T23:59:59Z
+    symbols: *research_symbols
+  holdout:
+    start: 2026-06-15T00:00:00Z
+    end: 2026-06-29T23:59:59Z
+    symbols: *research_symbols
+  purge_bars: 2
+  holdout_policy:
+    allow_parameter_search: false
+    allow_agent_access: false
+    max_manual_runs: 1
+    require_final_flag: true
+    require_clean_experiment_log: true
+
+parameter_grid:
+  trailing_stop_pct: [0.02, 0.03, 0.04]
+  stop_loss_pct: [0.015, 0.02, 0.025]

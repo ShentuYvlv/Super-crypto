@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from itertools import product
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -23,7 +24,7 @@ from super_crypto.signals.v4a_early_short import generate as generate_v4a
 from super_crypto.signals.v4b_confirmed_short import generate as generate_v4b
 from super_crypto.universe.manipulation_score import score_symbols
 from super_crypto.validation.robustness import by_month, by_symbol
-from super_crypto.validation.splits import filter_frame_for_split, split_hash
+from super_crypto.validation.splits import filter_frame_for_split, read_symbol_split_file, split_hash
 
 GENERATOR_MAP = {
     "V3": generate_v3,
@@ -54,15 +55,99 @@ def _data_snapshot_hash(paths: list[Path]) -> str:
     return hash_payload(payload)
 
 
-def _score_cutoff_for_split(split: str) -> pd.Timestamp:
-    split_config = load_yaml("configs/splits.yaml")
+def _resolve_config_section(
+    experiment_config: dict[str, Any],
+    *,
+    inline_key: str,
+    path_key: str,
+    default_path: str | None = "__required__",
+) -> tuple[dict[str, Any], str]:
+    if isinstance(experiment_config.get(inline_key), dict):
+        return experiment_config[inline_key], f"inline:{inline_key}"
+    config_path = experiment_config.get(path_key, default_path)
+    if config_path is None:
+        return {}, f"inline:{inline_key}:default"
+    if not config_path:
+        raise KeyError(f"Missing config section: {inline_key} or {path_key}")
+    return load_yaml(config_path), str(config_path)
+
+
+def _inline_split_symbols(split_config: dict[str, Any]) -> dict[str, Any]:
+    expanded = {**split_config}
+    split_files = split_config.get("symbol_split_files", {})
+    for split_name in ("train", "validation", "holdout"):
+        section = {**expanded[split_name]}
+        if "symbols" not in section and split_name in split_files:
+            section["symbols"] = read_symbol_split_file(split_files[split_name])
+        expanded[split_name] = section
+    expanded.pop("symbol_split_files", None)
+    return expanded
+
+
+def _default_splits_config() -> dict[str, Any]:
+    return load_yaml("configs/pipeline_v4a.yaml")["splits"]
+
+
+def build_expanded_experiment_config(config_path: str) -> dict[str, Any]:
+    experiment_config = load_yaml(config_path)
+    strategy_config, _strategy_source = _resolve_config_section(
+        experiment_config,
+        inline_key="strategy",
+        path_key="strategy_config",
+    )
+    backtest_config, _backtest_source = _resolve_config_section(
+        experiment_config,
+        inline_key="backtest",
+        path_key="backtest_config",
+    )
+    scores_config, _scores_source = _resolve_config_section(
+        experiment_config,
+        inline_key="scores",
+        path_key="scores_config",
+    )
+    splits_config, _splits_source = _resolve_config_section(
+        experiment_config,
+        inline_key="splits",
+        path_key="splits_config",
+        default_path=None,
+    )
+    if not splits_config:
+        splits_config = _default_splits_config()
+    expanded = {
+        key: value
+        for key, value in experiment_config.items()
+        if key
+        not in {
+            "strategy_config",
+            "backtest_config",
+            "scores_config",
+            "splits_config",
+            "strategy",
+            "backtest",
+            "scores",
+            "splits",
+        }
+    }
+    return {
+        **expanded,
+        "strategy": strategy_config,
+        "backtest": backtest_config,
+        "scores": scores_config,
+        "splits": _inline_split_symbols(splits_config),
+    }
+
+
+def _score_cutoff_for_split(split: str, split_config: dict[str, Any] | str | None = None) -> pd.Timestamp:
+    if split_config is None:
+        split_config = _default_splits_config()
+    split_config = split_config if isinstance(split_config, dict) else load_yaml(split_config)
     if split == "train_validation":
         return parse_timestamp(split_config["validation"]["end"])
     return parse_timestamp(split_config[split]["end"])
 
 
 def _load_scores(
-    config_path: str,
+    config: str | dict[str, Any],
     symbols: list[str],
     cutoff_time,
     derivatives_by_symbol: dict[str, pd.DataFrame],
@@ -81,7 +166,7 @@ def _load_scores(
     return score_symbols(
         cycles,
         cutoff_time=cutoff_time,
-        config=load_yaml(config_path),
+        config=config if isinstance(config, dict) else load_yaml(config),
         derivatives_by_symbol=derivatives_by_symbol,
     )
 
@@ -229,10 +314,33 @@ def _parameter_scan(
     )
 
 
-def run(config_path: str, split: str, final_flag: bool = False) -> dict:
+def run(config_path: str | dict[str, Any], split: str, final_flag: bool = False) -> dict:
     experiment_config = load_yaml(config_path)
-    strategy_config = load_yaml(experiment_config["strategy_config"])
-    backtest_config = load_yaml(experiment_config["backtest_config"])
+    config_source = str(config_path) if not isinstance(config_path, dict) else "inline:experiment"
+    config_hash = hash_file(config_path) if not isinstance(config_path, dict) else hash_payload(experiment_config)
+    strategy_config, strategy_config_source = _resolve_config_section(
+        experiment_config,
+        inline_key="strategy",
+        path_key="strategy_config",
+    )
+    backtest_config, backtest_config_source = _resolve_config_section(
+        experiment_config,
+        inline_key="backtest",
+        path_key="backtest_config",
+    )
+    scores_config, scores_config_source = _resolve_config_section(
+        experiment_config,
+        inline_key="scores",
+        path_key="scores_config",
+    )
+    splits_config, splits_config_source = _resolve_config_section(
+        experiment_config,
+        inline_key="splits",
+        path_key="splits_config",
+        default_path=None,
+    )
+    if not splits_config:
+        splits_config = _default_splits_config()
     strategy_name = str(strategy_config["strategy"])
     generator = GENERATOR_MAP[strategy_name]
     ohlcv_paths = sorted(
@@ -255,9 +363,9 @@ def run(config_path: str, split: str, final_flag: bool = False) -> dict:
         derivatives_by_symbol[symbol] = open_interest.assign(
             funding_rate=float(funding["funding_rate"].iloc[-1]) if not funding.empty else 0.0
         )
-    cutoff_time = _score_cutoff_for_split(split)
+    cutoff_time = _score_cutoff_for_split(split, splits_config)
     score_records = _load_scores(
-        experiment_config["scores_config"],
+        scores_config,
         symbols,
         cutoff_time,
         derivatives_by_symbol,
@@ -267,7 +375,7 @@ def run(config_path: str, split: str, final_flag: bool = False) -> dict:
     for ohlcv_path in ohlcv_paths:
         symbol = ohlcv_path.stem
         ohlcv = pd.read_parquet(ohlcv_path)
-        split_frame = filter_frame_for_split(ohlcv, "configs/splits.yaml", split)
+        split_frame = filter_frame_for_split(ohlcv, splits_config, split)
         if split_frame.empty:
             continue
         ohlcv_by_symbol[symbol] = split_frame
@@ -332,7 +440,7 @@ def run(config_path: str, split: str, final_flag: bool = False) -> dict:
     metrics = summarize_metrics(trades_frame)
     experiment_id = hash_payload(
         {
-            "config": hash_file(config_path),
+            "config": config_hash,
             "split": split,
             "run_at": to_iso(utc_now()),
             "strategy": strategy_name,
@@ -372,11 +480,13 @@ def run(config_path: str, split: str, final_flag: bool = False) -> dict:
         "engine": experiment_config["engine"],
         "split": split,
         "status": "accepted" if accepted else "rejected",
-        "config_path": str(config_path),
-        "strategy_config_path": str(experiment_config["strategy_config"]),
-        "backtest_config_path": str(experiment_config["backtest_config"]),
-        "config_hash": hash_file(config_path),
-        "split_hash": split_hash("configs/splits.yaml"),
+        "config_path": config_source,
+        "strategy_config_path": strategy_config_source,
+        "backtest_config_path": backtest_config_source,
+        "scores_config_path": scores_config_source,
+        "splits_config_path": splits_config_source,
+        "config_hash": config_hash,
+        "split_hash": split_hash(splits_config),
         "data_snapshot_hash": _data_snapshot_hash(ohlcv_paths),
         "git_commit_hash": _git_commit_hash(),
         "markdown_report_path": markdown_path,

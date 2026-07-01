@@ -79,6 +79,17 @@ def _stage_enabled(pipeline_config: dict[str, Any], stage: str) -> bool:
     return bool(_stage_config(pipeline_config, stage).get("enabled", True))
 
 
+def _config_ref(
+    pipeline_config: dict[str, Any],
+    inline_key: str,
+    path_key: str,
+    default_path: str | None = None,
+):
+    if isinstance(pipeline_config.get(inline_key), dict):
+        return pipeline_config[inline_key]
+    return pipeline_config.get(path_key, default_path)
+
+
 def _is_stage_fresh(output_paths: list[Path], freshness_seconds: int) -> bool:
     if not output_paths or not all(path.exists() for path in output_paths):
         return False
@@ -126,9 +137,9 @@ def _stage_skip_reason(pipeline_config: dict[str, Any], stage: str, split: str) 
     if not _stage_enabled(pipeline_config, stage):
         return "disabled"
 
-    data_config_path = pipeline_config.get("data_config", "configs/data.yaml")
+    data_config_ref = _config_ref(pipeline_config, "data", "data_config")
     try:
-        data_config = load_yaml(data_config_path)
+        data_config = load_yaml(data_config_ref)
     except Exception:
         data_config = {}
     symbols = data_config.get("symbols", [])
@@ -155,7 +166,7 @@ def _stage_skip_reason(pipeline_config: dict[str, Any], stage: str, split: str) 
     if stage == "enrich" and config.get("skip_if_fresh"):
         freshness_seconds = int(float(config.get("freshness_minutes", 0)) * 60)
         try:
-            enrichment_config = load_yaml(pipeline_config.get("enrichment_config", ""))
+            enrichment_config = load_yaml(_config_ref(pipeline_config, "enrichment", "enrichment_config", ""))
         except Exception:
             enrichment_config = {}
         endpoints = enrichment_config.get("coinglass", {}).get("endpoints", [])
@@ -178,10 +189,17 @@ def run_pipeline(
     final_flag: bool = False,
 ) -> dict:
     pipeline_config = load_yaml(config_path)
+    data_config_ref = _config_ref(pipeline_config, "data", "data_config")
+    splits_config_ref = _config_ref(pipeline_config, "splits", "splits_config")
+    cycle_config_ref = _config_ref(pipeline_config, "cycle", "cycle_config")
+    seed_events_config_ref = _config_ref(pipeline_config, "seed_events", "seed_events_config")
+    scores_config_ref = _config_ref(pipeline_config, "scores", "scores_config")
+    enrichment_config_ref = _config_ref(pipeline_config, "enrichment", "enrichment_config")
+    experiment_config_ref = _config_ref(pipeline_config, "experiment", "experiment_config")
     run_id = hash_file(config_path)[:12] + "-" + split
     store = PipelineStore()
     experiment_store = ExperimentStore()
-    holdout_guard("configs/splits.yaml", split, final_flag, experiment_store.holdout_run_count())
+    holdout_guard(splits_config_ref, split, final_flag, experiment_store.holdout_run_count())
     previous_run = next((run for run in store.list_runs() if run.get("run_id") == run_id), {})
     pipeline_run = {
         "run_id": run_id,
@@ -189,7 +207,7 @@ def run_pipeline(
         "split": split,
         "status": "running",
         "config_hash": hash_file(config_path),
-        "split_hash": split_hash("configs/splits.yaml"),
+        "split_hash": split_hash(splits_config_ref),
         "data_snapshot_hash": previous_run.get("data_snapshot_hash", ""),
         "git_commit_hash": _git_commit_hash(),
         "report_path": previous_run.get("report_path"),
@@ -240,23 +258,18 @@ def run_pipeline(
         try:
             if stage == "ingest":
                 details = {
-                    "market_snapshots": ingest_market_snapshots(pipeline_config["data_config"]),
-                    "klines": ingest_klines(pipeline_config["data_config"]),
-                    "funding": ingest_funding(pipeline_config["data_config"]),
-                    "open_interest": ingest_open_interest(pipeline_config["data_config"]),
+                    "market_snapshots": ingest_market_snapshots(data_config_ref),
+                    "klines": ingest_klines(data_config_ref),
+                    "funding": ingest_funding(data_config_ref),
+                    "open_interest": ingest_open_interest(data_config_ref),
                 }
             elif stage == "build_splits":
-                details = build_split_manifest(pipeline_config["splits_config"])
+                details = build_split_manifest(splits_config_ref)
             elif stage == "detect_cycles":
-                data_config = load_yaml(pipeline_config["data_config"])
-                details = label_cycles(
-                    pipeline_config["cycle_config"], data_config["symbols"], timeframe="1h"
-                )
+                data_config = load_yaml(data_config_ref)
+                details = label_cycles(cycle_config_ref, data_config["symbols"], timeframe="1h")
             elif stage == "build_event_set":
-                details = build_event_set(
-                    pipeline_config["seed_events_config"],
-                    pipeline_config["cycle_config"],
-                )
+                details = build_event_set(seed_events_config_ref, cycle_config_ref)
             elif stage == "score_symbols":
                 cycle_frames = []
                 derivatives = {}
@@ -276,7 +289,7 @@ def run_pipeline(
                 scores = score_symbols(
                     cycles,
                     cutoff_time=utc_now(),
-                    config=load_yaml(pipeline_config["scores_config"]),
+                    config=load_yaml(scores_config_ref),
                     derivatives_by_symbol=derivatives,
                 )
                 path = write_scores(
@@ -285,23 +298,17 @@ def run_pipeline(
                 )
                 details = {"score_count": len(scores), "path": path}
             elif stage == "enrich":
-                enrichment_config = load_yaml(pipeline_config["enrichment_config"])
-                symbols = load_yaml(pipeline_config["data_config"])["symbols"][
+                enrichment_config = load_yaml(enrichment_config_ref)
+                symbols = load_yaml(data_config_ref)["symbols"][
                     : enrichment_config["candidate_selection"]["top_n_by_score"]
                 ]
                 details = {
-                    "coinglass": ingest_coinglass(
-                        pipeline_config["enrichment_config"],
-                        symbols=symbols,
-                    ),
-                    "orderbook": ingest_orderbook(
-                        pipeline_config["enrichment_config"],
-                        symbols=symbols,
-                    ),
+                    "coinglass": ingest_coinglass(enrichment_config_ref, symbols=symbols),
+                    "orderbook": ingest_orderbook(enrichment_config_ref, symbols=symbols),
                 }
             elif stage == "run_experiment":
                 details = run_experiment(
-                    pipeline_config["experiment_config"],
+                    experiment_config_ref,
                     split,
                     final_flag=final_flag,
                 )
