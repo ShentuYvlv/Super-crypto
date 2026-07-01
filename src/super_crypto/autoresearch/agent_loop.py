@@ -19,7 +19,8 @@ from super_crypto.validation.splits import holdout_guard
 
 SYSTEM_PROMPT = """You are an AutoResearch assistant for a crypto signal research system.
 Return compact JSON only. Do not suggest touching holdout data, protected files, or production execution paths.
-Focus on testable parameter changes, evidence, and validation risk."""
+Focus on testable parameter changes, evidence, and validation risk.
+Use Simplified Chinese for all user-facing hypothesis, rationale, risk, decision, recommendation, notes, and evidence values."""
 
 
 def _experiment_history(limit: int) -> list[dict]:

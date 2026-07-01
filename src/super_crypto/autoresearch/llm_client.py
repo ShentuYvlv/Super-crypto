@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from dotenv import load_dotenv
+
+from super_crypto.common.paths import PROJECT_ROOT
 
 
 def _extract_json(text: str) -> dict[str, Any]:
@@ -30,6 +33,7 @@ class AutoResearchLLMClient:
 
     @classmethod
     def from_env(cls) -> "AutoResearchLLMClient | None":
+        load_dotenv(PROJECT_ROOT / ".env", override=False)
         base_url = os.environ.get("LLM_BASE_URL", "").rstrip("/")
         api_key = os.environ.get("LLM_API_KEY", "")
         model = os.environ.get("LLM_MODEL", "")
