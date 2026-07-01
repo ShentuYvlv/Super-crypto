@@ -38,7 +38,10 @@ const STATUS_LABELS: Record<string, string> = {
   next_bar_open: "下一根 K 线开盘",
   available: "可用",
   unavailable: "不可用",
+  configured: "已配置",
   no_signal: "无信号",
+  rules_fallback: "规则兜底",
+  llm: "大模型",
   none: "无"
 };
 

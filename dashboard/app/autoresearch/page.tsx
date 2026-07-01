@@ -56,6 +56,10 @@ function ParameterGrid({ value }: { value?: Record<string, unknown> }) {
 
 export default function AutoResearchPage() {
   const [refreshKey, setRefreshKey] = useState(0);
+  const [editMode, setEditMode] = useState(false);
+  const [selectedRunIds, setSelectedRunIds] = useState<string[]>([]);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const { data: runs } = useApi<AutoResearchRun[]>(`/api/autoresearch/runs?refresh=${refreshKey}`, []);
   const data = runs[0] ?? null;
   const latestIteration = data?.iterations.at(-1);
@@ -63,20 +67,55 @@ export default function AutoResearchPage() {
   const metrics = latestExperiment?.metrics;
   const llmMode = data?.model_status.mode ?? "none";
 
+  async function deleteRuns(runIds: string[]) {
+    const uniqueRunIds = Array.from(new Set(runIds));
+    if (!uniqueRunIds.length) {
+      return;
+    }
+    const confirmed = window.confirm(`确定删除 ${uniqueRunIds.length} 条研究循环记录吗？实验结果不会被删除。`);
+    if (!confirmed) {
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch("/api/autoresearch/runs", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ run_ids: uniqueRunIds })
+      });
+      if (!response.ok) {
+        throw new Error(`delete_failed:${response.status}`);
+      }
+      setSelectedRunIds([]);
+      setRefreshKey((value) => value + 1);
+    } catch (caughtError) {
+      setDeleteError(caughtError instanceof Error ? caughtError.message : "delete_failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function toggleSelected(runId: string) {
+    setSelectedRunIds((current) =>
+      current.includes(runId) ? current.filter((item) => item !== runId) : [...current, runId]
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-border bg-[radial-gradient(circle_at_top_left,rgba(0,82,255,0.18),transparent_34%),linear-gradient(135deg,#111821,#0b0e11)] p-6 shadow-panel">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-3 flex flex-wrap gap-2">
-              <Badge tone="info">LoopResearch</Badge>
+              <Badge tone="info">研究循环</Badge>
               <StatusBadge value={data?.status ?? "idle"} />
               <StatusBadge value={llmMode} />
             </div>
             <h2 className="text-4xl font-semibold">研究循环</h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
-              这里展示 AutoResearch 的假设、参数计划、验证集实验和复盘建议。没有配置 LLM
-              时会显示 rules_fallback，不会假装调用了大模型。
+              这里展示自动研究的假设、参数计划、验证集实验和复盘建议。没有配置大模型
+              时会显示规则兜底，不会假装调用了大模型。
             </p>
           </div>
           <Button
@@ -107,7 +146,7 @@ export default function AutoResearchPage() {
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
-              label="Run ID"
+              label="运行ID"
               value={data.run_id.slice(0, 12)}
               sublabel={`开始 ${displayDateTime(data.created_at)}`}
             />
@@ -115,7 +154,10 @@ export default function AutoResearchPage() {
             <MetricCard
               label="模型模式"
               value={data.model_status.model || displayStatus(data.model_status.mode)}
-              sublabel={data.model_status.base_url ?? data.model_status.reason ?? "LLM 环境变量已读取"}
+              sublabel={
+                data.model_status.base_url ??
+                (data.model_status.reason ? displayStatus(data.model_status.reason) : "大模型环境变量已读取")
+              }
               badge={data.model_status.mode}
             />
             <MetricCard
@@ -137,16 +179,73 @@ export default function AutoResearchPage() {
                 <h3 className="text-2xl font-semibold">最近运行记录</h3>
                 <p className="mt-1 text-sm text-muted">用这里确认 dashboard 当前看到的是哪一次 loopresearch。</p>
               </div>
-              <p className="text-sm text-muted">共 {runs.length} 次</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm text-muted">共 {runs.length} 次</p>
+                {editMode ? (
+                  <>
+                    <Button
+                      className="bg-surface2 text-text hover:bg-border"
+                      onClick={() => setSelectedRunIds(runs.map((run) => run.run_id))}
+                      disabled={!runs.length || deleting}
+                    >
+                      全选
+                    </Button>
+                    <Button
+                      className="bg-negative text-white hover:bg-negative/80"
+                      onClick={() => void deleteRuns(selectedRunIds)}
+                      disabled={!selectedRunIds.length || deleting}
+                    >
+                      删除选中 {selectedRunIds.length}
+                    </Button>
+                    <Button
+                      className="bg-surface2 text-text hover:bg-border"
+                      onClick={() => {
+                        setEditMode(false);
+                        setSelectedRunIds([]);
+                      }}
+                      disabled={deleting}
+                    >
+                      完成
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    className="bg-surface2 text-text hover:bg-border"
+                    onClick={() => setEditMode(true)}
+                    disabled={!runs.length}
+                  >
+                    编辑记录
+                  </Button>
+                )}
+              </div>
             </div>
+            {deleteError ? (
+              <p className="mb-3 rounded-lg border border-negative/40 bg-negative/10 p-3 text-sm text-negative">
+                删除失败：{deleteError}
+              </p>
+            ) : null}
             <div className="grid gap-3">
-              {runs.slice(0, 6).map((run) => {
+              {runs.map((run) => {
                 const firstExperiment = run.iterations[0]?.validation_result.experiment;
+                const selected = selectedRunIds.includes(run.run_id);
                 return (
                   <div
                     key={run.run_id}
-                    className="grid gap-3 rounded-lg border border-border bg-canvas/40 p-4 text-sm md:grid-cols-[1fr_1fr_1.2fr]"
+                    className={`grid gap-3 rounded-lg border border-border bg-canvas/40 p-4 text-sm ${
+                      editMode ? "md:grid-cols-[auto_1fr_1fr_1.2fr_auto]" : "md:grid-cols-[1fr_1fr_1.2fr]"
+                    }`}
                   >
+                    {editMode ? (
+                      <label className="flex items-start pt-7">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleSelected(run.run_id)}
+                          className="h-4 w-4 accent-[var(--accent)]"
+                          aria-label={`选择 ${run.run_id}`}
+                        />
+                      </label>
+                    ) : null}
                     <div>
                       <p className="text-muted">运行</p>
                       <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -162,13 +261,24 @@ export default function AutoResearchPage() {
                         {firstExperiment?.experiment_id ?? "-"}
                       </p>
                       <p className="mt-2 text-muted">
-                        {run.iterations.length} 轮 · {run.model_status.mode}
+                        {run.iterations.length} 轮 · {displayStatus(run.model_status.mode)}
                       </p>
                     </div>
                     <div>
                       <p className="text-muted">建议</p>
                       <p className="mt-1 leading-6 text-text">{run.recommendation}</p>
                     </div>
+                    {editMode ? (
+                      <div className="flex items-start justify-end">
+                        <Button
+                          className="bg-negative text-white hover:bg-negative/80"
+                          onClick={() => void deleteRuns([run.run_id])}
+                          disabled={deleting}
+                        >
+                          删除
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
@@ -182,15 +292,15 @@ export default function AutoResearchPage() {
             </div>
             <div className="grid gap-4 p-5 text-sm text-muted md:grid-cols-3">
               <div>
-                <p className="font-semibold text-text">Run ID</p>
+                <p className="font-semibold text-text">运行ID</p>
                 <div className="mt-2"><HashBadge value={data.run_id} /></div>
               </div>
               <div>
-                <p className="font-semibold text-text">Manifest</p>
+                <p className="font-semibold text-text">运行清单</p>
                 <p className="mt-2 break-words font-mono">{displayPath(data.manifest_path)}</p>
               </div>
               <div>
-                <p className="font-semibold text-text">Recommendation</p>
+                <p className="font-semibold text-text">建议文件</p>
                 <p className="mt-2 break-words font-mono">{displayPath(data.recommendation_path)}</p>
               </div>
             </div>
@@ -204,7 +314,7 @@ export default function AutoResearchPage() {
                 <Card key={iteration.iteration} className="overflow-hidden">
                   <div className="flex flex-col gap-3 border-b border-border bg-surface2/60 p-5 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <p className="text-sm text-muted">Iteration {iteration.iteration}</p>
+                      <p className="text-sm text-muted">轮次 {iteration.iteration}</p>
                       <h3 className="mt-1 text-xl font-semibold">
                         {iteration.hypothesis.hypothesis ?? "未生成假设"}
                       </h3>
@@ -232,7 +342,7 @@ export default function AutoResearchPage() {
                           风险：{iteration.hypothesis.risk ?? "未说明"}
                         </p>
                         {iteration.hypothesis.llm_error ? (
-                          <p className="mt-2 text-sm text-negative">LLM 错误：{iteration.hypothesis.llm_error}</p>
+                          <p className="mt-2 text-sm text-negative">大模型错误：{iteration.hypothesis.llm_error}</p>
                         ) : null}
                       </section>
 
@@ -245,7 +355,7 @@ export default function AutoResearchPage() {
                           <ParameterGrid value={iteration.plan.suggested_changes?.parameter_grid} />
                         </div>
                         <p className="mt-3 break-words font-mono text-xs text-muted">
-                          generated_config: {iteration.generated_config}
+                          生成配置：{iteration.generated_config}
                         </p>
                       </section>
                     </div>

@@ -124,6 +124,31 @@ class ExperimentStore:
             "signals": self.delete_payloads("signals", "signal_id", orphan_signal_ids),
         }
 
+    def clear_autoresearch_runs(self, run_ids: list[str]) -> int:
+        unique_ids = set(run_ids)
+        if not unique_ids:
+            return 0
+        cleared = 0
+        autoresearch_keys = [
+            "autoresearch_run_id",
+            "autoresearch_iteration",
+            "autoresearch_started_at",
+            "autoresearch_completed_at",
+            "autoresearch_parent_config",
+            "autoresearch_generated_config",
+            "autoresearch_hypothesis",
+            "autoresearch_decision",
+            "autoresearch_recommendation",
+        ]
+        for experiment in self.list_payloads("experiments"):
+            if experiment.get("autoresearch_run_id") not in unique_ids:
+                continue
+            for key in autoresearch_keys:
+                experiment.pop(key, None)
+            self.upsert("experiments", "experiment_id", experiment)
+            cleared += 1
+        return cleared
+
     def record_holdout_audit(self, payload: dict[str, Any]) -> None:
         with self._connect() as conn:
             conn.execute(
