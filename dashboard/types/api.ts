@@ -315,9 +315,66 @@ export type AutoResearchRun = {
     accepted: boolean;
     reason: string;
   };
+  cycle_research_result?: CycleResearchRun | null;
   iterations: AutoResearchIteration[];
   recommendation: string;
   recommendation_path?: string;
+  manifest_path?: string;
+};
+
+export type CycleResearchCandidate = {
+  candidate_id: string;
+  cycle_config: {
+    pump_threshold_min: number;
+    pump_threshold_max: number;
+    dump_retrace_ratio: number;
+    max_cycle_hours: number;
+    dedupe_gap_hours: number;
+    [key: string]: number | string;
+  };
+  quality: {
+    score: number;
+    cycle_count: number;
+    covered_symbols: number;
+    coverage_ratio: number;
+    median_pump_return: number;
+    median_dump_return: number;
+    median_duration_hours: number;
+    matched_seed_event_count: number;
+    expanded_event_count: number;
+    rejection_reason?: string;
+  };
+  cycles_by_symbol: Record<string, number>;
+};
+
+export type CycleResearchRun = {
+  run_id: string;
+  created_at: string;
+  completed_at?: string;
+  status: string;
+  pipeline_config_path: string;
+  autoresearch_config_path: string;
+  model_status: {
+    mode: string;
+    model?: string | null;
+    reason?: string;
+  };
+  hypothesis: {
+    mode?: string;
+    hypothesis?: string;
+    rationale?: string;
+    risk?: string;
+    llm_error?: string;
+  };
+  base_cycle_config: Record<string, number | string>;
+  timeframe: string;
+  symbols: string[];
+  candidate_count: number;
+  best_candidate_id?: string | null;
+  best_cycle_config?: CycleResearchCandidate["cycle_config"] | null;
+  best_quality?: CycleResearchCandidate["quality"] | null;
+  applied_path?: string | null;
+  candidates: CycleResearchCandidate[];
   manifest_path?: string;
 };
 

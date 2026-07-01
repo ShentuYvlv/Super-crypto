@@ -22,3 +22,5 @@ def test_cli_help_runs():
     )
     assert result.returncode == 0
     assert "Super Crypto research CLI" in result.stdout
+    assert "autoresearch" in result.stdout
+    assert "cycleresearch" not in result.stdout

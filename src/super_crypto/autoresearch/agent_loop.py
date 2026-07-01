@@ -5,6 +5,7 @@ from typing import Any
 from super_crypto.autoresearch.accept_reject_policy import accept
 from super_crypto.autoresearch.artifacts import create_run_dir, write_json, write_markdown
 from super_crypto.autoresearch.config_mutator import write_experiment_variant
+from super_crypto.autoresearch.cycle_research import run_cycle_research
 from super_crypto.autoresearch.experiment_planner import plan_next_experiment
 from super_crypto.autoresearch.hypothesis_generator import generate_hypotheses
 from super_crypto.autoresearch.llm_client import AutoResearchLLMClient, llm_status
@@ -16,11 +17,12 @@ from super_crypto.experiments.experiment_store import ExperimentStore
 from super_crypto.experiments.run_experiment import run as run_experiment
 from super_crypto.validation.splits import holdout_guard
 
-
 SYSTEM_PROMPT = """You are an AutoResearch assistant for a crypto signal research system.
-Return compact JSON only. Do not suggest touching holdout data, protected files, or production execution paths.
+Return compact JSON only. Do not suggest touching holdout data, protected files,
+or production execution paths.
 Focus on testable parameter changes, evidence, and validation risk.
-Use Simplified Chinese for all user-facing hypothesis, rationale, risk, decision, recommendation, notes, and evidence values."""
+Use Simplified Chinese for all user-facing hypothesis, rationale, risk, decision,
+recommendation, notes, and evidence values."""
 
 
 def _experiment_history(limit: int) -> list[dict]:
@@ -31,12 +33,41 @@ def _experiment_history(limit: int) -> list[dict]:
     )[:limit]
 
 
-def _fallback_hypothesis(experiments: list[dict]) -> dict:
+def _fallback_hypothesis(
+    experiments: list[dict],
+    cycle_research_result: dict[str, Any] | None = None,
+) -> dict:
     hypothesis = generate_hypotheses(experiments)[0]
+    cycle_note = ""
+    if cycle_research_result and cycle_research_result.get("best_quality"):
+        quality = cycle_research_result["best_quality"]
+        cycle_note = (
+            f"CycleResearch 最佳周期质量分 {quality.get('score', 0):.3f}，"
+            f"周期数 {quality.get('cycle_count', 0)}，"
+            f"覆盖标的 {quality.get('covered_symbols', 0)}。"
+        )
     return {
         "hypothesis": hypothesis,
-        "rationale": "根据最近实验指标由规则 fallback 生成。",
+        "rationale": f"{cycle_note}根据最近实验指标由规则 fallback 生成。".strip(),
         "risk": "规则只能看结构化指标，可能漏掉需要人工/LLM 解释的行情 regime 变化。",
+    }
+
+
+def _cycle_research_summary(result: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not result:
+        return None
+    best_config = result.get("best_cycle_config") or {}
+    best_quality = result.get("best_quality") or {}
+    return {
+        "run_id": result.get("run_id"),
+        "status": result.get("status"),
+        "pipeline_config_path": result.get("pipeline_config_path"),
+        "timeframe": result.get("timeframe"),
+        "candidate_count": result.get("candidate_count"),
+        "best_candidate_id": result.get("best_candidate_id"),
+        "best_cycle_config": best_config,
+        "best_quality": best_quality,
+        "hypothesis": result.get("hypothesis"),
     }
 
 
@@ -45,9 +76,10 @@ def _llm_hypothesis(
     *,
     experiments: list[dict],
     previous_iterations: list[dict],
+    cycle_research_result: dict[str, Any] | None = None,
 ) -> dict:
     if client is None:
-        return _fallback_hypothesis(experiments)
+        return _fallback_hypothesis(experiments, cycle_research_result=cycle_research_result)
     try:
         payload = client.complete_json(
             system=SYSTEM_PROMPT,
@@ -55,6 +87,7 @@ def _llm_hypothesis(
                 "task": "propose_next_hypothesis",
                 "recent_experiments": experiments[:8],
                 "previous_iterations": previous_iterations,
+                "cycle_research_result": _cycle_research_summary(cycle_research_result),
                 "required_schema": {
                     "hypothesis": "short testable statement",
                     "rationale": "brief evidence summary",
@@ -63,12 +96,18 @@ def _llm_hypothesis(
             },
         )
         return {
-            "hypothesis": str(payload.get("hypothesis") or _fallback_hypothesis(experiments)["hypothesis"]),
+            "hypothesis": str(
+                payload.get("hypothesis")
+                or _fallback_hypothesis(
+                    experiments,
+                    cycle_research_result=cycle_research_result,
+                )["hypothesis"]
+            ),
             "rationale": str(payload.get("rationale") or "LLM did not provide rationale."),
             "risk": str(payload.get("risk") or "unspecified"),
         }
     except Exception as exc:
-        fallback = _fallback_hypothesis(experiments)
+        fallback = _fallback_hypothesis(experiments, cycle_research_result=cycle_research_result)
         fallback["llm_error"] = f"{type(exc).__name__}: {exc}"
         return fallback
 
@@ -121,7 +160,12 @@ def _llm_review(
     baseline: dict | None,
     validation_result: dict,
 ) -> dict:
-    fallback = review_result(experiment, acceptance, baseline=baseline, validation_result=validation_result)
+    fallback = review_result(
+        experiment,
+        acceptance,
+        baseline=baseline,
+        validation_result=validation_result,
+    )
     if client is None:
         return fallback
     try:
@@ -144,7 +188,11 @@ def _llm_review(
             **fallback,
             "decision": str(payload.get("decision") or fallback["decision"]),
             "recommendation": str(payload.get("recommendation") or fallback["recommendation"]),
-            "evidence": payload.get("evidence") if isinstance(payload.get("evidence"), list) else fallback["evidence"],
+            "evidence": (
+                payload.get("evidence")
+                if isinstance(payload.get("evidence"), list)
+                else fallback["evidence"]
+            ),
         }
     except Exception as exc:
         return {**fallback, "llm_error": f"{type(exc).__name__}: {exc}"}
@@ -175,6 +223,15 @@ def run_loop(
     run_id, run_dir = create_run_dir(config_path)
     client = AutoResearchLLMClient.from_env() if use_llm else None
     model_status = llm_status(client)
+    cycle_research_result = None
+    if bool(autoresearch_config.get("cycle_research_enabled", True)):
+        cycle_research_result = run_cycle_research(
+            str(autoresearch_config.get("pipeline_config_path", "configs/pipeline_v4a.yaml")),
+            autoresearch_config_path=autoresearch_config_path,
+            max_runs=autoresearch_config.get("max_cycle_validation_runs"),
+            use_llm=use_llm,
+            apply_best=bool(autoresearch_config.get("cycle_research_apply_best", False)),
+        )
     experiments = _experiment_history(history_window)
     latest = experiments[0] if experiments else None
     accepted, reason = (
@@ -188,9 +245,19 @@ def run_loop(
     for index in range(1, run_limit + 1):
         iteration_started_at = to_iso(utc_now())
         experiments = _experiment_history(history_window)
-        hypothesis = _llm_hypothesis(client, experiments=experiments, previous_iterations=iterations)
+        hypothesis = _llm_hypothesis(
+            client,
+            experiments=experiments,
+            previous_iterations=iterations,
+            cycle_research_result=cycle_research_result,
+        )
         fallback_plan = plan_next_experiment(config_path, hypothesis["hypothesis"])
-        plan = _llm_plan(client, config_path=config_path, hypothesis=hypothesis, fallback_plan=fallback_plan)
+        plan = _llm_plan(
+            client,
+            config_path=config_path,
+            hypothesis=hypothesis,
+            fallback_plan=fallback_plan,
+        )
         validation_config_path = write_experiment_variant(config_path, plan)
         validation_split = "validation"
         try:
@@ -202,7 +269,11 @@ def run_loop(
             validation_split,
             final_flag=False,
         )
-        validation_result = run_experiment(validation_config_path, validation_split, final_flag=False)
+        validation_result = run_experiment(
+            validation_config_path,
+            validation_split,
+            final_flag=False,
+        )
         validation_experiment = validation_result["experiment"]
         validation_experiment.update(
             {
@@ -263,6 +334,7 @@ def run_loop(
         "autoresearch_config_path": autoresearch_config_path,
         "model_status": model_status,
         "latest_acceptance": {"accepted": accepted, "reason": reason},
+        "cycle_research_result": cycle_research_result,
         "iterations": iterations,
         "recommendation": recommendation,
     }

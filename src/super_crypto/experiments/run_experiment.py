@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import yaml
 
 from super_crypto.autoresearch.accept_reject_policy import accept
 from super_crypto.backtest.event_backtester import run_event_backtest
@@ -13,7 +14,7 @@ from super_crypto.backtest.metrics import summarize_metrics
 from super_crypto.backtest.trade_report import to_frame, write_csv
 from super_crypto.backtest.vectorbt_runner import run_vectorbt_benchmark
 from super_crypto.common.config import hash_file, hash_payload, load_yaml
-from super_crypto.common.paths import DATA_ROOT, REPORT_ROOT, ensure_directory
+from super_crypto.common.paths import DATA_ROOT, REPORT_ROOT, ensure_directory, resolve_project_path
 from super_crypto.common.time import parse_timestamp, to_iso, utc_now
 from super_crypto.experiments.experiment_store import ExperimentStore
 from super_crypto.features.orderbook_features import latest_orderbook_metrics
@@ -24,7 +25,11 @@ from super_crypto.signals.v4a_early_short import generate as generate_v4a
 from super_crypto.signals.v4b_confirmed_short import generate as generate_v4b
 from super_crypto.universe.manipulation_score import score_symbols
 from super_crypto.validation.robustness import by_month, by_symbol
-from super_crypto.validation.splits import filter_frame_for_split, read_symbol_split_file, split_hash
+from super_crypto.validation.splits import (
+    filter_frame_for_split,
+    read_symbol_split_file,
+    split_hash,
+)
 
 GENERATOR_MAP = {
     "V3": generate_v3,
@@ -137,7 +142,10 @@ def build_expanded_experiment_config(config_path: str) -> dict[str, Any]:
     }
 
 
-def _score_cutoff_for_split(split: str, split_config: dict[str, Any] | str | None = None) -> pd.Timestamp:
+def _score_cutoff_for_split(
+    split: str,
+    split_config: dict[str, Any] | str | None = None,
+) -> pd.Timestamp:
     if split_config is None:
         split_config = _default_splits_config()
     split_config = split_config if isinstance(split_config, dict) else load_yaml(split_config)
@@ -238,9 +246,94 @@ def _select_parameters(
         if accepted:
             return candidate["params"], "parameter_grid", reason
     best = parameter_scan[0]
-    if best["metrics"]["net_return"] > base_metrics["net_return"] and best["metrics"]["trade_count"] >= base_metrics["trade_count"]:
-        return best["params"], "parameter_grid_best_effort", "best_grid_candidate_improved_primary_metric"
+    if (
+        best["metrics"]["net_return"] > base_metrics["net_return"]
+        and best["metrics"]["trade_count"] >= base_metrics["trade_count"]
+    ):
+        return (
+            best["params"],
+            "parameter_grid_best_effort",
+            "best_grid_candidate_improved_primary_metric",
+        )
     return {}, "base_strategy_config", "no_grid_candidate_accepted"
+
+
+def _frozen_config_dir() -> Path:
+    return ensure_directory(DATA_ROOT / "processed" / "frozen_configs")
+
+
+def latest_frozen_config_path(strategy: str) -> Path:
+    return _frozen_config_dir() / f"{str(strategy).lower()}_selected.yaml"
+
+
+def freeze_selected_experiment_config(
+    *,
+    experiment_config: dict[str, Any],
+    strategy_config: dict[str, Any],
+    backtest_config: dict[str, Any],
+    scores_config: dict[str, Any],
+    splits_config: dict[str, Any],
+    selected_parameters: dict[str, Any],
+    source_experiment_id: str,
+    source_config_hash: str,
+    source_split_hash: str,
+    created_at: str,
+) -> str:
+    frozen_strategy = {**strategy_config, **selected_parameters}
+    frozen_config = {
+        **{
+            key: value
+            for key, value in experiment_config.items()
+            if key
+            not in {
+                "strategy_config",
+                "backtest_config",
+                "scores_config",
+                "splits_config",
+                "strategy",
+                "backtest",
+                "scores",
+                "splits",
+                "parameter_grid",
+            }
+        },
+        "name": f"{experiment_config['name']}_frozen",
+        "engine": experiment_config["engine"],
+        "minimum_trade_count": experiment_config.get("minimum_trade_count", 20),
+        "strategy": frozen_strategy,
+        "backtest": backtest_config,
+        "scores": scores_config,
+        "splits": _inline_split_symbols(splits_config),
+        "parameter_grid": {},
+        "frozen_from": {
+            "experiment_id": source_experiment_id,
+            "config_hash": source_config_hash,
+            "split_hash": source_split_hash,
+            "selected_parameters": selected_parameters,
+            "created_at": created_at,
+        },
+    }
+    path = latest_frozen_config_path(strategy_config["strategy"])
+    path.write_text(
+        yaml.safe_dump(frozen_config, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    return str(path)
+
+
+def _load_holdout_frozen_config(
+    experiment_config: dict[str, Any],
+    strategy_name: str,
+) -> tuple[dict[str, Any] | None, str | None]:
+    configured_path = experiment_config.get("frozen_config_path")
+    path = (
+        resolve_project_path(configured_path)
+        if configured_path
+        else latest_frozen_config_path(strategy_name)
+    )
+    if not path.exists():
+        return None, str(path)
+    return load_yaml(path), str(path)
 
 
 def _parameter_scan(
@@ -317,7 +410,11 @@ def _parameter_scan(
 def run(config_path: str | dict[str, Any], split: str, final_flag: bool = False) -> dict:
     experiment_config = load_yaml(config_path)
     config_source = str(config_path) if not isinstance(config_path, dict) else "inline:experiment"
-    config_hash = hash_file(config_path) if not isinstance(config_path, dict) else hash_payload(experiment_config)
+    config_hash = (
+        hash_file(config_path)
+        if not isinstance(config_path, dict)
+        else hash_payload(experiment_config)
+    )
     strategy_config, strategy_config_source = _resolve_config_section(
         experiment_config,
         inline_key="strategy",
@@ -342,6 +439,42 @@ def run(config_path: str | dict[str, Any], split: str, final_flag: bool = False)
     if not splits_config:
         splits_config = _default_splits_config()
     strategy_name = str(strategy_config["strategy"])
+    holdout_frozen_config_path = None
+    if split == "holdout":
+        frozen_config, holdout_frozen_config_path = _load_holdout_frozen_config(
+            experiment_config,
+            strategy_name,
+        )
+        if frozen_config is None:
+            raise ValueError(
+                "Holdout requires a frozen config from train_validation. "
+                f"Missing frozen config: {holdout_frozen_config_path}"
+            )
+        experiment_config = frozen_config
+        config_source = holdout_frozen_config_path
+        config_hash = hash_file(holdout_frozen_config_path)
+        strategy_config, strategy_config_source = _resolve_config_section(
+            experiment_config,
+            inline_key="strategy",
+            path_key="strategy_config",
+        )
+        backtest_config, backtest_config_source = _resolve_config_section(
+            experiment_config,
+            inline_key="backtest",
+            path_key="backtest_config",
+        )
+        scores_config, scores_config_source = _resolve_config_section(
+            experiment_config,
+            inline_key="scores",
+            path_key="scores_config",
+        )
+        splits_config, splits_config_source = _resolve_config_section(
+            experiment_config,
+            inline_key="splits",
+            path_key="splits_config",
+            default_path=None,
+        )
+        strategy_name = str(strategy_config["strategy"])
     generator = GENERATOR_MAP[strategy_name]
     ohlcv_paths = sorted(
         (DATA_ROOT / "processed" / "ohlcv" / strategy_config["timeframe"]).glob("*.parquet")
@@ -400,6 +533,7 @@ def run(config_path: str | dict[str, Any], split: str, final_flag: bool = False)
         manipulation_bucket_by_symbol=manipulation_bucket_by_symbol,
     )
     base_metrics = summarize_metrics(to_frame(base_trades_payloads)).model_dump(mode="json")
+    parameter_grid = {} if split == "holdout" else experiment_config.get("parameter_grid", {})
     parameter_scan = _parameter_scan(
         symbols=list(ohlcv_by_symbol),
         ohlcv_by_symbol=ohlcv_by_symbol,
@@ -410,7 +544,7 @@ def run(config_path: str | dict[str, Any], split: str, final_flag: bool = False)
         generator=generator,
         strategy_config=strategy_config,
         backtest_config=backtest_config,
-        parameter_grid=experiment_config.get("parameter_grid", {}),
+        parameter_grid=parameter_grid,
         manipulation_bucket_by_symbol=manipulation_bucket_by_symbol,
     )
     minimum_trade_count = int(experiment_config.get("minimum_trade_count", 20))
@@ -473,6 +607,21 @@ def run(config_path: str | dict[str, Any], split: str, final_flag: bool = False)
         {"metrics": metrics.model_dump(mode="json")},
         minimum_trade_count=minimum_trade_count,
     )
+    created_at = to_iso(utc_now())
+    frozen_config_path = None
+    if split == "train_validation" and accepted:
+        frozen_config_path = freeze_selected_experiment_config(
+            experiment_config=experiment_config,
+            strategy_config=strategy_config,
+            backtest_config=backtest_config,
+            scores_config=scores_config,
+            splits_config=splits_config,
+            selected_parameters=selected_parameters,
+            source_experiment_id=experiment_id,
+            source_config_hash=config_hash,
+            source_split_hash=split_hash(splits_config),
+            created_at=created_at,
+        )
     experiment_payload = {
         "experiment_id": experiment_id,
         "name": experiment_config["name"],
@@ -498,8 +647,10 @@ def run(config_path: str | dict[str, Any], split: str, final_flag: bool = False)
         "parameter_selection_source": selection_source,
         "parameter_selection_reason": selection_reason,
         "parameter_sensitivity": parameter_scan[:20],
+        "frozen_config_path": frozen_config_path,
+        "holdout_frozen_config_path": holdout_frozen_config_path,
         "vectorbt_benchmark": vectorbt_benchmark,
-        "created_at": to_iso(utc_now()),
+        "created_at": created_at,
         "failure_reason": None if accepted else decision_reason,
     }
     store.upsert("experiments", "experiment_id", experiment_payload)
@@ -511,6 +662,7 @@ def run(config_path: str | dict[str, Any], split: str, final_flag: bool = False)
                 "created_at": to_iso(utc_now()),
                 "experiment_id": experiment_id,
                 "config_hash": experiment_payload["config_hash"],
+                "frozen_config_path": holdout_frozen_config_path,
                 "split_hash": experiment_payload["split_hash"],
                 "final_flag": final_flag,
             }

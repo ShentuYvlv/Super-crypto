@@ -9,8 +9,8 @@ from fastapi.testclient import TestClient
 
 from super_crypto.autoresearch import agent_loop
 from super_crypto.autoresearch import artifacts as autoresearch_artifacts
-from super_crypto.reports import report_server
 from super_crypto.report_api import autoresearch as autoresearch_api
+from super_crypto.reports import report_server
 
 
 class FakeExperimentStore:
@@ -95,6 +95,7 @@ def test_autoresearch_loop_persists_fallback_recommendation(tmp_path, monkeypatc
         yaml.safe_dump(
             {
                 "max_validation_runs_per_loop": 2,
+                "cycle_research_enabled": False,
                 "history_window": 5,
                 "allowed_config_files": [str(config_path)],
             }
@@ -118,7 +119,11 @@ def test_autoresearch_loop_persists_fallback_recommendation(tmp_path, monkeypatc
 
     monkeypatch.setattr(agent_loop, "ExperimentStore", FakeExperimentStore)
     monkeypatch.setattr(agent_loop, "create_run_dir", fake_create_run_dir)
-    monkeypatch.setattr(agent_loop, "write_experiment_variant", lambda _base, _plan: str(tmp_path / "variant.yaml"))
+    monkeypatch.setattr(
+        agent_loop,
+        "write_experiment_variant",
+        lambda _base, _plan: str(tmp_path / "variant.yaml"),
+    )
     monkeypatch.setattr(agent_loop, "holdout_guard", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(agent_loop, "run_experiment", fake_run_experiment)
 
@@ -135,7 +140,9 @@ def test_autoresearch_loop_persists_fallback_recommendation(tmp_path, monkeypatc
     assert manifest["iterations"][1]["completed_at"]
     assert FakeExperimentStore.upserted[-1]["autoresearch_run_id"] == "run-a"
     assert FakeExperimentStore.upserted[-1]["autoresearch_iteration"] == 2
-    assert manifest["iterations"][1]["review"]["trade_summary"]["exit_reasons"] == {"trailing_stop": 1}
+    assert manifest["iterations"][1]["review"]["trade_summary"]["exit_reasons"] == {
+        "trailing_stop": 1
+    }
     assert "recommendation_path" in manifest
     assert Path(manifest["manifest_path"]).exists()
     assert Path(manifest["recommendation_path"]).exists()
@@ -144,6 +151,100 @@ def test_autoresearch_loop_persists_fallback_recommendation(tmp_path, monkeypatc
     assert persisted["recommendation_path"] == manifest["recommendation_path"]
     assert (run_dir / "iterations" / "iteration_01.json").exists()
     assert "validation-2" in Path(manifest["recommendation_path"]).read_text(encoding="utf-8")
+
+
+def test_autoresearch_loop_runs_cycle_research_before_strategy(tmp_path, monkeypatch):
+    FakeExperimentStore.upserted = []
+    config_path = tmp_path / "experiment.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "name": "test",
+                "engine": "event_driven",
+                "minimum_trade_count": 2,
+                "parameter_grid": {"support_break_threshold": [0.003]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    pipeline_config_path = tmp_path / "pipeline.yaml"
+    pipeline_config_path.write_text("name: pipeline\n", encoding="utf-8")
+    autoresearch_config_path = tmp_path / "autoresearch.yaml"
+    autoresearch_config_path.write_text(
+        yaml.safe_dump(
+            {
+                "max_validation_runs_per_loop": 1,
+                "max_cycle_validation_runs": 2,
+                "cycle_research_enabled": True,
+                "pipeline_config_path": str(pipeline_config_path),
+                "history_window": 5,
+                "allowed_config_files": [str(config_path)],
+            }
+        ),
+        encoding="utf-8",
+    )
+    run_dir = tmp_path / "runs" / "run-cycle"
+    cycle_calls: list[dict] = []
+
+    def fake_create_run_dir(_config_path: str):
+        (run_dir / "iterations").mkdir(parents=True)
+        return "run-cycle", run_dir
+
+    def fake_cycle_research(*args, **kwargs):
+        cycle_calls.append({"args": args, "kwargs": kwargs})
+        return {
+            "run_id": "cycle-a",
+            "status": "completed",
+            "pipeline_config_path": str(pipeline_config_path),
+            "timeframe": "15m",
+            "candidate_count": 2,
+            "best_candidate_id": "cycle_01",
+            "best_cycle_config": {
+                "pump_threshold_min": 0.16,
+                "pump_threshold_max": 0.45,
+                "dump_retrace_ratio": 0.45,
+                "max_cycle_hours": 48,
+                "dedupe_gap_hours": 4,
+            },
+            "best_quality": {"score": 0.7, "cycle_count": 12, "covered_symbols": 3},
+            "hypothesis": {"hypothesis": "测试周期定义。"},
+        }
+
+    monkeypatch.setattr(agent_loop, "ExperimentStore", FakeExperimentStore)
+    monkeypatch.setattr(agent_loop, "create_run_dir", fake_create_run_dir)
+    monkeypatch.setattr(agent_loop, "run_cycle_research", fake_cycle_research)
+    monkeypatch.setattr(
+        agent_loop,
+        "write_experiment_variant",
+        lambda _base, _plan: str(tmp_path / "variant.yaml"),
+    )
+    monkeypatch.setattr(agent_loop, "holdout_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        agent_loop,
+        "run_experiment",
+        lambda _config_path, _split, final_flag: _experiment_payload(
+            "validation-cycle",
+            trade_count=3,
+            net_return=0.04,
+        ),
+    )
+
+    manifest = agent_loop.run_loop(
+        str(config_path),
+        autoresearch_config_path=str(autoresearch_config_path),
+        use_llm=False,
+    )
+
+    assert len(cycle_calls) == 1
+    assert cycle_calls[0]["args"][0] == str(pipeline_config_path)
+    assert cycle_calls[0]["kwargs"]["max_runs"] == 2
+    assert cycle_calls[0]["kwargs"]["apply_best"] is False
+    assert manifest["cycle_research_result"]["run_id"] == "cycle-a"
+    assert manifest["iterations"][0]["hypothesis"]["rationale"].startswith(
+        "CycleResearch 最佳周期质量分"
+    )
+    persisted = json.loads(Path(manifest["manifest_path"]).read_text(encoding="utf-8"))
+    assert persisted["cycle_research_result"]["best_candidate_id"] == "cycle_01"
 
 
 def test_autoresearch_rejects_unlisted_config(tmp_path):
@@ -156,7 +257,11 @@ def test_autoresearch_rejects_unlisted_config(tmp_path):
     )
 
     with pytest.raises(ValueError, match="not allowed"):
-        agent_loop.run_loop(str(config_path), autoresearch_config_path=str(autoresearch_config_path), use_llm=False)
+        agent_loop.run_loop(
+            str(config_path),
+            autoresearch_config_path=str(autoresearch_config_path),
+            use_llm=False,
+        )
 
 
 def test_autoresearch_api_returns_latest_manifest(monkeypatch):
@@ -184,13 +289,21 @@ def test_autoresearch_artifacts_localize_english_recommendations(tmp_path, monke
                     {
                         "hypothesis": {
                             "hypothesis": "Increase signal coverage before judging profitability.",
-                            "rationale": "Generated by rules fallback from recent experiment metrics.",
+                            "rationale": (
+                                "Generated by rules fallback from recent experiment metrics."
+                            ),
                             "risk": "May miss regime changes.",
                         },
-                        "plan": {"suggested_changes": {"notes": "Increase signal coverage before judging profitability."}},
+                        "plan": {
+                            "suggested_changes": {
+                                "notes": "Increase signal coverage before judging profitability."
+                            }
+                        },
                         "review": {
                             "decision": "Increase signal coverage before judging profitability.",
-                            "recommendation": "Increase signal coverage before judging profitability.",
+                            "recommendation": (
+                                "Increase signal coverage before judging profitability."
+                            ),
                             "evidence": ["Increase signal coverage before judging profitability."],
                         },
                     }
@@ -204,11 +317,17 @@ def test_autoresearch_artifacts_localize_english_recommendations(tmp_path, monke
 
     assert manifest is not None
     assert manifest["recommendation"] == "先提高信号覆盖率，再判断盈利能力。"
-    assert manifest["iterations"][0]["review"]["recommendation"] == "先提高信号覆盖率，再判断盈利能力。"
+    assert (
+        manifest["iterations"][0]["review"]["recommendation"]
+        == "先提高信号覆盖率，再判断盈利能力。"
+    )
     assert manifest["iterations"][0]["hypothesis"]["rationale"].startswith("模型返回了英文内容")
 
 
-def test_delete_autoresearch_runs_removes_artifacts_and_clears_experiment_links(tmp_path, monkeypatch):
+def test_delete_autoresearch_runs_removes_artifacts_and_clears_experiment_links(
+    tmp_path,
+    monkeypatch,
+):
     class FakeStore:
         cleared: list[str] = []
 
@@ -221,7 +340,13 @@ def test_delete_autoresearch_runs_removes_artifacts_and_clears_experiment_links(
     monkeypatch.setattr(autoresearch_api, "experiment_store", lambda: store)
     run_dir = tmp_path / "processed" / "autoresearch" / "runs" / "run-a"
     run_dir.mkdir(parents=True)
-    (run_dir / "manifest.json").write_text("{}", encoding="utf-8")
+    cycle_dir = tmp_path / "processed" / "cycle_research" / "runs" / "cycle-a"
+    cycle_dir.mkdir(parents=True)
+    (cycle_dir / "manifest.json").write_text("{}", encoding="utf-8")
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"run_id": "run-a", "cycle_research_result": {"run_id": "cycle-a"}}),
+        encoding="utf-8",
+    )
 
     response = autoresearch_api.delete_autoresearch_runs(
         autoresearch_api.DeleteAutoResearchRunsRequest(run_ids=["run-a"])
@@ -229,8 +354,10 @@ def test_delete_autoresearch_runs_removes_artifacts_and_clears_experiment_links(
 
     assert response["payload"]["deleted_run_ids"] == ["run-a"]
     assert response["payload"]["cleared_experiments"] == 1
+    assert response["payload"]["deleted_cycle_run_ids"] == ["cycle-a"]
     assert store.cleared == ["run-a"]
     assert not run_dir.exists()
+    assert not cycle_dir.exists()
 
 
 def test_report_server_allows_autoresearch_delete_before_static_mount(tmp_path, monkeypatch):

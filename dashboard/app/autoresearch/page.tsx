@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useApi } from "@/lib/api";
 import { displayDateTime, displayReason, displayStatus } from "@/lib/display";
-import type { AutoResearchRun } from "@/types/api";
+import type { AutoResearchRun, CycleResearchRun } from "@/types/api";
 
 function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -54,6 +54,23 @@ function ParameterGrid({ value }: { value?: Record<string, unknown> }) {
   );
 }
 
+function CycleConfigView({ value }: { value?: Record<string, unknown> | null }) {
+  const entries = Object.entries(value ?? {});
+  if (!entries.length) {
+    return <p className="text-sm text-muted">暂无周期定义。</p>;
+  }
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+      {entries.map(([key, nestedValue]) => (
+        <div key={key} className="rounded-lg border border-border bg-canvas/50 p-3">
+          <p className="text-xs uppercase tracking-wide text-muted">{key}</p>
+          <p className="mt-2 font-mono text-sm text-text">{String(nestedValue)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AutoResearchPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [editMode, setEditMode] = useState(false);
@@ -61,7 +78,12 @@ export default function AutoResearchPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const { data: runs } = useApi<AutoResearchRun[]>(`/api/autoresearch/runs?refresh=${refreshKey}`, []);
+  const { data: cycleRuns } = useApi<CycleResearchRun[]>(
+    `/api/autoresearch/cycle-runs?refresh=${refreshKey}`,
+    []
+  );
   const data = runs[0] ?? null;
+  const latestCycleRun = data?.cycle_research_result ?? cycleRuns[0] ?? null;
   const latestIteration = data?.iterations.at(-1);
   const latestExperiment = latestIteration?.validation_result.experiment;
   const metrics = latestExperiment?.metrics;
@@ -144,6 +166,106 @@ export default function AutoResearchPage() {
         </Card>
       ) : (
         <>
+          <Card className="overflow-hidden">
+            <div className="border-b border-border bg-surface2/60 p-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    <Badge tone="info">周期定义研究</Badge>
+                    <StatusBadge value={latestCycleRun?.status ?? "idle"} />
+                    <StatusBadge value={latestCycleRun?.model_status.mode ?? "none"} />
+                  </div>
+                  <h3 className="text-2xl font-semibold">CycleResearch</h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
+                    这里对应文章里的“让 AI 找操盘周期定义”：先搜索拉盘、砸盘、时间窗口和去重参数，
+                    再把通过验证的周期定义交给策略研究层。
+                  </p>
+                </div>
+                <div className="text-sm text-muted lg:text-right">
+                  <p>运行数：{cycleRuns.length}</p>
+                  <p>最新：{displayDateTime(latestCycleRun?.completed_at ?? latestCycleRun?.created_at)}</p>
+                </div>
+              </div>
+            </div>
+            {!latestCycleRun ? (
+              <div className="p-5">
+                <EmptyState
+                  title="暂无周期定义研究"
+                  description="执行 just loopresearch 后，这里会显示候选周期定义、样本覆盖和最佳参数。"
+                />
+              </div>
+            ) : (
+              <div className="space-y-5 p-5">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <MetricCard
+                    label="最佳候选"
+                    value={latestCycleRun.best_candidate_id?.slice(0, 16) ?? "-"}
+                    sublabel={`共 ${latestCycleRun.candidate_count} 个候选`}
+                  />
+                  <MetricCard
+                    label="周期质量分"
+                    value={formatNumber(latestCycleRun.best_quality?.score)}
+                    sublabel={`覆盖 ${latestCycleRun.best_quality?.covered_symbols ?? 0}/${latestCycleRun.symbols.length} 个标的`}
+                  />
+                  <MetricCard
+                    label="周期数量"
+                    value={String(latestCycleRun.best_quality?.cycle_count ?? 0)}
+                    sublabel={`扩展事件 ${latestCycleRun.best_quality?.expanded_event_count ?? 0}`}
+                  />
+                  <MetricCard
+                    label="种子匹配"
+                    value={String(latestCycleRun.best_quality?.matched_seed_event_count ?? 0)}
+                    sublabel={`周期级别 ${latestCycleRun.timeframe}`}
+                  />
+                </div>
+                <section>
+                  <p className="text-sm font-semibold text-text">研究假设</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    {latestCycleRun.hypothesis.hypothesis ?? "未生成假设"}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-warning">
+                    风险：{latestCycleRun.hypothesis.risk ?? "未说明"}
+                  </p>
+                </section>
+                <section>
+                  <p className="mb-3 text-sm font-semibold text-text">最佳周期定义</p>
+                  <CycleConfigView value={latestCycleRun.best_cycle_config} />
+                </section>
+                <section>
+                  <p className="mb-3 text-sm font-semibold text-text">候选排名</p>
+                  <div className="grid gap-3">
+                    {latestCycleRun.candidates
+                      .slice()
+                      .sort((a, b) => b.quality.score - a.quality.score)
+                      .map((candidate) => (
+                        <div
+                          key={candidate.candidate_id}
+                          className="rounded-lg border border-border bg-canvas/40 p-4"
+                        >
+                          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <HashBadge value={candidate.candidate_id} />
+                              {candidate.candidate_id === latestCycleRun.best_candidate_id ? (
+                                <Badge tone="positive">最佳</Badge>
+                              ) : null}
+                            </div>
+                            <p className="font-mono text-sm text-text">
+                              score {formatNumber(candidate.quality.score)} · cycles{" "}
+                              {candidate.quality.cycle_count} · coverage{" "}
+                              {formatPercent(candidate.quality.coverage_ratio)}
+                            </p>
+                          </div>
+                          <div className="mt-3">
+                            <CycleConfigView value={candidate.cycle_config} />
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </section>
+              </div>
+            )}
+          </Card>
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="运行ID"

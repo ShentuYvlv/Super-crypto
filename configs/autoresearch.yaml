@@ -1,7 +1,13 @@
 max_validation_runs_per_loop: 3
+cycle_research_enabled: true
+cycle_research_apply_best: false
+pipeline_config_path: configs/pipeline_v4a.yaml
+max_cycle_validation_runs: 3
 history_window: 20
 allowed_config_files:
   - configs/experiment_v3_full.yaml
   - configs/experiment_v4a_full.yaml
   - configs/experiment_v4b_full.yaml
+allowed_pipeline_config_files:
+  - configs/pipeline_v4a.yaml
 protected_files: configs/protected_files.yaml

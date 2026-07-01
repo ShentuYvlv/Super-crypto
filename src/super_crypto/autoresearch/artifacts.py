@@ -9,7 +9,6 @@ from super_crypto.common.config import canonical_json, hash_payload
 from super_crypto.common.paths import DATA_ROOT, ensure_directory, ensure_parent
 from super_crypto.common.time import to_iso, utc_now
 
-
 USER_TEXT_TRANSLATIONS = {
     "Increase signal coverage before judging profitability.": "先提高信号覆盖率，再判断盈利能力。",
     "No validation run completed.": "没有完成验证实验。",
@@ -19,6 +18,10 @@ USER_TEXT_TRANSLATIONS = {
 
 def _autoresearch_root() -> Path:
     return DATA_ROOT / "processed" / "autoresearch" / "runs"
+
+
+def cycle_research_root() -> Path:
+    return DATA_ROOT / "processed" / "cycle_research" / "runs"
 
 
 def _looks_english(text: str) -> bool:
@@ -71,6 +74,13 @@ def create_run_dir(config_path: str) -> tuple[str, Path]:
     return run_id, run_dir
 
 
+def create_cycle_run_dir(config_path: str) -> tuple[str, Path]:
+    run_id = hash_payload({"cycle_config_path": config_path, "created_at": to_iso(utc_now())})[:12]
+    run_dir = ensure_directory(cycle_research_root() / run_id)
+    ensure_directory(run_dir / "candidates")
+    return run_id, run_dir
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> str:
     ensure_parent(path)
     path.write_text(canonical_json(payload), encoding="utf-8")
@@ -79,19 +89,46 @@ def write_json(path: Path, payload: dict[str, Any]) -> str:
 
 def write_markdown(path: Path, payload: dict[str, Any]) -> str:
     ensure_parent(path)
+    cycle_research = payload.get("cycle_research_result") or {}
+    cycle_quality = cycle_research.get("best_quality") or {}
     lines = [
         f"# 自动研究建议 {payload['run_id']}",
         "",
         f"- 状态: {payload['status']}",
         f"- 模型模式: {payload['model_status']['mode']}",
         f"- 轮数: {len(payload['iterations'])}",
-        "",
-        "## 最新建议",
-        "",
-        localize_user_text(payload.get("recommendation", "No recommendation generated.")),
-        "",
-        "## 轮次",
     ]
+    if cycle_research:
+        lines.extend(
+            [
+                f"- 周期定义研究: {cycle_research.get('run_id', '-')}",
+                f"- 最佳周期质量分: {cycle_quality.get('score', '-')}",
+                f"- 最佳周期数量: {cycle_quality.get('cycle_count', '-')}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## 最新建议",
+            "",
+            localize_user_text(payload.get("recommendation", "No recommendation generated.")),
+            "",
+            "## 周期定义研究",
+            "",
+        ]
+    )
+    if cycle_research:
+        lines.extend(
+            [
+                f"- 候选数: {cycle_research.get('candidate_count', '-')}",
+                f"- 最佳候选: {cycle_research.get('best_candidate_id', '-')}",
+                f"- 最佳定义: {cycle_research.get('best_cycle_config', {})}",
+                "",
+            ]
+        )
+    else:
+        lines.extend(["未启用或未完成周期定义研究。", ""])
+    lines.append("## 策略验证轮次")
     for iteration in payload["iterations"]:
         acceptance = iteration["validation_acceptance"]
         experiment = iteration["validation_result"]["experiment"]
@@ -116,7 +153,11 @@ def latest_run_manifest() -> dict[str, Any] | None:
     root = _autoresearch_root()
     if not root.exists():
         return None
-    manifests = sorted(root.glob("*/manifest.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+    manifests = sorted(
+        root.glob("*/manifest.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
     if not manifests:
         return None
     return localize_manifest(json.loads(manifests[0].read_text(encoding="utf-8")))
@@ -126,7 +167,11 @@ def list_run_manifests() -> list[dict[str, Any]]:
     root = _autoresearch_root()
     if not root.exists():
         return []
-    manifests = sorted(root.glob("*/manifest.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+    manifests = sorted(
+        root.glob("*/manifest.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
     return [localize_manifest(json.loads(path.read_text(encoding="utf-8"))) for path in manifests]
 
 
@@ -140,6 +185,50 @@ def delete_run_artifacts(run_ids: list[str]) -> dict[str, Any]:
             run_dir.relative_to(root)
         except ValueError as exc:
             raise ValueError(f"Invalid AutoResearch run id: {run_id}") from exc
+        if not (run_dir / "manifest.json").exists():
+            missing.append(run_id)
+            continue
+        shutil.rmtree(run_dir)
+        deleted.append(run_id)
+    return {"deleted_run_ids": deleted, "missing_run_ids": missing}
+
+
+def latest_cycle_run_manifest() -> dict[str, Any] | None:
+    root = cycle_research_root()
+    if not root.exists():
+        return None
+    manifests = sorted(
+        root.glob("*/manifest.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not manifests:
+        return None
+    return json.loads(manifests[0].read_text(encoding="utf-8"))
+
+
+def list_cycle_run_manifests() -> list[dict[str, Any]]:
+    root = cycle_research_root()
+    if not root.exists():
+        return []
+    manifests = sorted(
+        root.glob("*/manifest.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return [json.loads(path.read_text(encoding="utf-8")) for path in manifests]
+
+
+def delete_cycle_run_artifacts(run_ids: list[str]) -> dict[str, Any]:
+    root = cycle_research_root().resolve()
+    deleted: list[str] = []
+    missing: list[str] = []
+    for run_id in sorted(set(run_ids)):
+        run_dir = (root / run_id).resolve()
+        try:
+            run_dir.relative_to(root)
+        except ValueError as exc:
+            raise ValueError(f"Invalid CycleResearch run id: {run_id}") from exc
         if not (run_dir / "manifest.json").exists():
             missing.append(run_id)
             continue

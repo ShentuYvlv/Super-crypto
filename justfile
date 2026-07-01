@@ -14,11 +14,11 @@ expand-experiment config="configs/experiment_v4a_full.yaml" output="configs/expe
   uv run python -m super_crypto.cli expand-experiment-config --config {{config}} --output {{output}}
 
 loopresearch config="configs/experiment_v4a_full.yaml" max_runs="3":
-  @echo "loopresearch: experiment_config={{config}} llm=auto max_runs={{max_runs}}"
+  @echo "loopresearch: cycle_research=on experiment_config={{config}} llm=auto max_runs={{max_runs}}"
   uv run python -m super_crypto.cli autoresearch --config {{config}} --max-runs {{max_runs}}
 
 loopresearch-local config="configs/experiment_v4a_full.yaml" max_runs="3":
-  @echo "loopresearch-local: experiment_config={{config}} llm=off max_runs={{max_runs}}"
+  @echo "loopresearch-local: cycle_research=on experiment_config={{config}} llm=off max_runs={{max_runs}}"
   uv run python -m super_crypto.cli autoresearch --config {{config}} --max-runs {{max_runs}} --no-llm
 
 holdout config="configs/pipeline_v4a.yaml":
