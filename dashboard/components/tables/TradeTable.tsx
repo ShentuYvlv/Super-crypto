@@ -51,10 +51,19 @@ const columns = [
 
 export function TradeTable({
   data,
-  onRowClick
+  onRowClick,
+  activeTradeId
 }: {
   data: Trade[];
   onRowClick?: (row: Trade) => void;
+  activeTradeId?: string;
 }) {
-  return <DataTable data={data} columns={columns} onRowClick={onRowClick} />;
+  return (
+    <DataTable
+      data={data}
+      columns={columns}
+      onRowClick={onRowClick}
+      isRowActive={(row) => row.trade_id === activeTradeId}
+    />
+  );
 }

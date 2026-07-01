@@ -10,7 +10,6 @@ const items = [
   { href: "/experiments", label: "实验", activePaths: ["/backtest"] },
   { href: "/autoresearch", label: "研究循环" },
   { href: "/signals", label: "信号" },
-  { href: "/trades", label: "交易" },
   { href: "/symbols", label: "数据", activePaths: ["/data-quality"] },
   { href: "/reports", label: "报告" }
 ];

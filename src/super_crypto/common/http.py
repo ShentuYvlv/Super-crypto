@@ -18,3 +18,7 @@ def http_trust_env(service: str | None = None) -> bool:
         if override_name in os.environ:
             return env_flag(override_name)
     return env_flag("SUPER_CRYPTO_HTTP_TRUST_ENV", default=False)
+
+
+def binance_offline_cache_enabled() -> bool:
+    return env_flag("BINANCE_OFFLINE_CACHE")

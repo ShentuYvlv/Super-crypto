@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Iterable
 from typing import Any
 
@@ -10,8 +11,22 @@ from super_crypto.common.http import http_trust_env
 
 
 class BinanceFuturesClient:
-    def __init__(self, base_url: str | None = None, timeout: float = 20.0) -> None:
+    def __init__(
+        self,
+        base_url: str | None = None,
+        timeout: float = 20.0,
+        max_retries: int | None = None,
+        retry_backoff_sec: float | None = None,
+    ) -> None:
         self.base_url = base_url or os.environ.get("BINANCE_BASE_URL", "https://fapi.binance.com")
+        self.max_retries = max_retries if max_retries is not None else int(
+            os.environ.get("BINANCE_MAX_RETRIES", "3")
+        )
+        self.retry_backoff_sec = (
+            retry_backoff_sec
+            if retry_backoff_sec is not None
+            else float(os.environ.get("BINANCE_RETRY_BACKOFF_SEC", "0.5"))
+        )
         self.client = httpx.Client(
             base_url=self.base_url,
             timeout=timeout,
@@ -28,9 +43,31 @@ class BinanceFuturesClient:
         self.close()
 
     def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        response = self.client.get(path, params=params or {})
-        response.raise_for_status()
-        return response.json()
+        last_error: Exception | None = None
+        attempts = max(self.max_retries, 0) + 1
+        for attempt in range(attempts):
+            try:
+                response = self.client.get(path, params=params or {})
+                response.raise_for_status()
+                return response.json()
+            except (
+                httpx.ConnectError,
+                httpx.ConnectTimeout,
+                httpx.ReadError,
+                httpx.ReadTimeout,
+            ) as exc:
+                last_error = exc
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code not in {408, 425, 429, 500, 502, 503, 504}:
+                    raise
+                last_error = exc
+
+            if attempt < attempts - 1:
+                time.sleep(self.retry_backoff_sec * (2**attempt))
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError(f"Binance request failed without exception: {path}")
 
     def exchange_info(self) -> dict[str, Any]:
         return self._get("/fapi/v1/exchangeInfo")
