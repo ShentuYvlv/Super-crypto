@@ -24,7 +24,7 @@ def by_month(trades: pd.DataFrame) -> pd.DataFrame:
     if trades.empty:
         return pd.DataFrame()
     result = trades.copy()
-    result["month"] = pd.to_datetime(result["exit_time"], utc=True).dt.to_period("M").astype(str)
+    result["month"] = pd.to_datetime(result["exit_time"], utc=True).dt.strftime("%Y-%m")
     return (
         result.groupby("month")
         .agg(net_return=("net_return", "sum"), trade_count=("trade_id", "count"))

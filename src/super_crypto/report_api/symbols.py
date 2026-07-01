@@ -292,7 +292,7 @@ def get_symbol(symbol: str):
     cycles = load_symbol_cycles(symbol)
     funding = load_symbol_funding(symbol)
     open_interest = load_symbol_open_interest(symbol)
-    ohlcv = load_symbol_ohlcv(symbol).tail(240)
+    ohlcv = load_symbol_ohlcv(symbol).tail(2000)
     orderbook = load_symbol_orderbook(symbol)
     latest_orderbook = orderbook.iloc[-1].to_dict() if not orderbook.empty else None
     payload = {

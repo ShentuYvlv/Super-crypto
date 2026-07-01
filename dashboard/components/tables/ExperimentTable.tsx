@@ -32,6 +32,14 @@ const columns = [
     header: "运行时间",
     cell: ({ getValue }) => displayDateTime(getValue())
   }),
+  columnHelper.accessor("autoresearch_run_id", {
+    header: "研究Run",
+    cell: ({ getValue }) => (getValue() ? <HashBadge value={getValue() ?? ""} /> : "-")
+  }),
+  columnHelper.accessor("autoresearch_iteration", {
+    header: "轮次",
+    cell: ({ getValue }) => getValue() ?? "-"
+  }),
   columnHelper.accessor((row) => row.metrics.net_return, {
     id: "net_return",
     header: "净收益",

@@ -11,6 +11,8 @@ from super_crypto.report_api import autoresearch as autoresearch_api
 
 
 class FakeExperimentStore:
+    upserted: list[dict] = []
+
     def __init__(self):
         self.payloads = [
             {
@@ -29,6 +31,11 @@ class FakeExperimentStore:
     def list_payloads(self, table: str):
         assert table == "experiments"
         return self.payloads
+
+    def upsert(self, table: str, key: str, payload: dict):
+        assert table == "experiments"
+        assert key == "experiment_id"
+        self.upserted.append(payload)
 
 
 def _experiment_payload(experiment_id: str, trade_count: int, net_return: float) -> dict:
@@ -66,6 +73,7 @@ def _experiment_payload(experiment_id: str, trade_count: int, net_return: float)
 
 
 def test_autoresearch_loop_persists_fallback_recommendation(tmp_path, monkeypatch):
+    FakeExperimentStore.upserted = []
     config_path = tmp_path / "experiment.yaml"
     config_path.write_text(
         yaml.safe_dump(
@@ -120,6 +128,10 @@ def test_autoresearch_loop_persists_fallback_recommendation(tmp_path, monkeypatc
     assert manifest["status"] == "accepted"
     assert manifest["model_status"]["mode"] == "rules_fallback"
     assert len(manifest["iterations"]) == 2
+    assert manifest["iterations"][1]["started_at"]
+    assert manifest["iterations"][1]["completed_at"]
+    assert FakeExperimentStore.upserted[-1]["autoresearch_run_id"] == "run-a"
+    assert FakeExperimentStore.upserted[-1]["autoresearch_iteration"] == 2
     assert manifest["iterations"][1]["review"]["trade_summary"]["exit_reasons"] == {"trailing_stop": 1}
     assert "recommendation_path" in manifest
     assert Path(manifest["manifest_path"]).exists()

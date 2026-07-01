@@ -62,13 +62,13 @@ def review_result(
     metrics = experiment["metrics"]
     baseline_metrics = baseline.get("metrics", {}) if baseline else {}
     trade_summary = summarize_trades(validation_result)
-    recommendation = "Keep current config for more validation data."
+    recommendation = "当前分支可以保留，但需要更多 validation 样本继续验证。"
     if acceptance["reason"] == "trade_count_below_threshold":
-        recommendation = "Increase signal coverage before judging profitability."
+        recommendation = "先提高交易覆盖率；当前交易数太少，不能把 10% 左右收益当成可靠结论。"
     elif acceptance["reason"] == "non_positive_net_return":
-        recommendation = "Reduce hold time or tighten exits before expanding the universe."
+        recommendation = "先缩短持仓或收紧退出规则；在净收益转正前不要扩大参数范围。"
     elif acceptance["reason"] == "no_validation_improvement":
-        recommendation = "Reject this branch and try a different trigger family."
+        recommendation = "拒绝这条参数分支，下一轮应尝试不同触发逻辑，而不是继续微调同一组阈值。"
     return {
         "summary": summarize_result(experiment),
         "trade_summary": trade_summary,

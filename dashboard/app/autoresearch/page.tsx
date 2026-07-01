@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
+
 import { EmptyState } from "@/components/EmptyState";
 import { HashBadge } from "@/components/HashBadge";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useApi } from "@/lib/api";
 import { displayDateTime, displayReason, displayStatus } from "@/lib/display";
@@ -52,7 +55,9 @@ function ParameterGrid({ value }: { value?: Record<string, unknown> }) {
 }
 
 export default function AutoResearchPage() {
-  const { data } = useApi<AutoResearchRun | null>("/api/autoresearch/latest", null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { data: runs } = useApi<AutoResearchRun[]>(`/api/autoresearch/runs?refresh=${refreshKey}`, []);
+  const data = runs[0] ?? null;
   const latestIteration = data?.iterations.at(-1);
   const latestExperiment = latestIteration?.validation_result.experiment;
   const metrics = latestExperiment?.metrics;
@@ -74,12 +79,18 @@ export default function AutoResearchPage() {
               时会显示 rules_fallback，不会假装调用了大模型。
             </p>
           </div>
+          <Button
+            className="self-start bg-surface2 text-text hover:bg-border lg:self-end"
+            onClick={() => setRefreshKey((value) => value + 1)}
+          >
+            刷新运行记录
+          </Button>
           {data ? (
             <div className="grid gap-2 text-sm text-muted sm:grid-cols-2 lg:min-w-[420px]">
-              <span>运行时间：{displayDateTime(data.created_at)}</span>
+              <span>开始时间：{displayDateTime(data.created_at)}</span>
+              <span>完成时间：{displayDateTime(data.completed_at)}</span>
               <span>轮数：{data.iterations.length}</span>
               <span>基础配置：{displayPath(data.config_path)}</span>
-              <span>研究配置：{displayPath(data.autoresearch_config_path)}</span>
             </div>
           ) : null}
         </div>
@@ -95,10 +106,15 @@ export default function AutoResearchPage() {
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="Run ID"
+              value={data.run_id.slice(0, 12)}
+              sublabel={`开始 ${displayDateTime(data.created_at)}`}
+            />
             <MetricCard label="状态" value={displayStatus(data.status)} sublabel={data.latest_acceptance.reason} />
             <MetricCard
               label="模型模式"
-              value={data.model_status.model ?? displayStatus(data.model_status.mode)}
+              value={data.model_status.model || displayStatus(data.model_status.mode)}
               sublabel={data.model_status.base_url ?? data.model_status.reason ?? "LLM 环境变量已读取"}
               badge={data.model_status.mode}
             />
@@ -114,6 +130,50 @@ export default function AutoResearchPage() {
               sublabel={`夏普 ${formatNumber(metrics?.sharpe)}`}
             />
           </div>
+
+          <Card className="p-5">
+            <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h3 className="text-2xl font-semibold">最近运行记录</h3>
+                <p className="mt-1 text-sm text-muted">用这里确认 dashboard 当前看到的是哪一次 loopresearch。</p>
+              </div>
+              <p className="text-sm text-muted">共 {runs.length} 次</p>
+            </div>
+            <div className="grid gap-3">
+              {runs.slice(0, 6).map((run) => {
+                const firstExperiment = run.iterations[0]?.validation_result.experiment;
+                return (
+                  <div
+                    key={run.run_id}
+                    className="grid gap-3 rounded-lg border border-border bg-canvas/40 p-4 text-sm md:grid-cols-[1fr_1fr_1.2fr]"
+                  >
+                    <div>
+                      <p className="text-muted">运行</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <HashBadge value={run.run_id} />
+                        <StatusBadge value={run.status} />
+                      </div>
+                      <p className="mt-2 text-muted">开始 {displayDateTime(run.created_at)}</p>
+                      <p className="mt-1 text-muted">完成 {displayDateTime(run.completed_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted">实验</p>
+                      <p className="mt-1 font-mono text-text">
+                        {firstExperiment?.experiment_id ?? "-"}
+                      </p>
+                      <p className="mt-2 text-muted">
+                        {run.iterations.length} 轮 · {run.model_status.mode}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted">建议</p>
+                      <p className="mt-1 leading-6 text-text">{run.recommendation}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
 
           <Card className="overflow-hidden">
             <div className="border-b border-border bg-surface2/60 p-5">
@@ -148,6 +208,11 @@ export default function AutoResearchPage() {
                       <h3 className="mt-1 text-xl font-semibold">
                         {iteration.hypothesis.hypothesis ?? "未生成假设"}
                       </h3>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                        <span>轮次开始：{displayDateTime(iteration.started_at)}</span>
+                        <span>轮次完成：{displayDateTime(iteration.completed_at)}</span>
+                        <span>实验时间：{displayDateTime(experiment.created_at)}</span>
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <StatusBadge value={iteration.validation_acceptance.accepted ? "accepted" : "rejected"} />

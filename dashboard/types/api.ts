@@ -92,6 +92,15 @@ export type Experiment = {
   selected_parameters?: Record<string, number | string>;
   parameter_selection_source?: string;
   parameter_selection_reason?: string;
+  autoresearch_run_id?: string;
+  autoresearch_iteration?: number;
+  autoresearch_started_at?: string;
+  autoresearch_completed_at?: string;
+  autoresearch_parent_config?: string;
+  autoresearch_generated_config?: string;
+  autoresearch_hypothesis?: string;
+  autoresearch_decision?: string;
+  autoresearch_recommendation?: string;
   parameter_sensitivity?: Array<{
     params: Record<string, number | string>;
     signal_count: number;
@@ -251,6 +260,8 @@ export type PipelineRun = {
 
 export type AutoResearchIteration = {
   iteration: number;
+  started_at?: string;
+  completed_at?: string;
   hypothesis: {
     hypothesis?: string;
     rationale?: string;
@@ -290,6 +301,7 @@ export type AutoResearchIteration = {
 export type AutoResearchRun = {
   run_id: string;
   created_at: string;
+  completed_at?: string;
   status: string;
   config_path: string;
   autoresearch_config_path: string;

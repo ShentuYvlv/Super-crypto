@@ -6,7 +6,8 @@ from super_crypto.common.config import load_yaml
 def plan_next_experiment(config_path: str, hypothesis: str) -> dict:
     config = load_yaml(config_path)
     parameter_grid = dict(config.get("parameter_grid", {}))
-    if "trade count" in hypothesis.lower():
+    normalized_hypothesis = hypothesis.lower()
+    if "trade count" in normalized_hypothesis or "交易数" in hypothesis:
         parameter_grid["support_break_threshold"] = sorted(
             set(parameter_grid.get("support_break_threshold", []) + [0.001, 0.002, 0.003])
         )

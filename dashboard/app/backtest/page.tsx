@@ -265,6 +265,28 @@ function BacktestContent() {
           <p className="mt-2 text-xs text-muted">{displayText(experimentDetail.parameter_selection_reason ?? "-")}</p>
         </Card>
       </div>
+      <Card className="p-5">
+        <div className="grid gap-4 text-sm leading-6 text-muted lg:grid-cols-3">
+          <div>
+            <p className="font-semibold text-text">已拒绝是什么意思</p>
+            <p className="mt-1">
+              这表示实验跑完了，但没有通过研究验收规则。常见原因是交易数太少、净收益不为正、没有超过基线或成本压力过高；它不是程序失败。
+            </p>
+          </div>
+          <div>
+            <p className="font-semibold text-text">权益怎么看</p>
+            <p className="mt-1">
+              权益从 1.00 开始，按每笔交易平仓后的净收益累计。纵轴显示相对起点的累计收益，横轴是平仓时间。
+            </p>
+          </div>
+          <div>
+            <p className="font-semibold text-text">回撤怎么看</p>
+            <p className="mt-1">
+              回撤是当前权益相对历史最高权益的下跌比例。0% 代表没有回撤，越往下说明从高点亏回去越多。
+            </p>
+          </div>
+        </div>
+      </Card>
       {experimentDetail.selected_parameters && Object.keys(experimentDetail.selected_parameters).length > 0 ? (
         <Card className="p-5">
           <h3 className="mb-4 text-2xl font-semibold">选中参数</h3>
@@ -295,7 +317,13 @@ function BacktestContent() {
       </Card>
       <div className="grid gap-6 xl:grid-cols-2">
         <Card className="p-5">
-          <h3 className="mb-4 text-2xl font-semibold">权益</h3>
+          <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold">权益</h3>
+              <p className="mt-1 text-sm text-muted">纵轴：累计权益相对 1.00 起点的变化；横轴：交易平仓时间。</p>
+            </div>
+            <p className="text-xs text-muted">单位：累计净收益</p>
+          </div>
           {experimentDetail.equity_curve.length === 0 ? (
             <EmptyState title="暂无权益曲线" description="当前实验没有成交，不能伪造收益曲线。" />
           ) : (
@@ -303,7 +331,13 @@ function BacktestContent() {
           )}
         </Card>
         <Card className="p-5">
-          <h3 className="mb-4 text-2xl font-semibold">回撤</h3>
+          <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold">回撤</h3>
+              <p className="mt-1 text-sm text-muted">纵轴：从历史权益高点回落的百分比；横轴：交易平仓时间。</p>
+            </div>
+            <p className="text-xs text-muted">单位：%</p>
+          </div>
           {experimentDetail.drawdown_curve.length === 0 ? (
             <EmptyState title="暂无回撤曲线" description="当前实验没有成交，回撤也保持空态。" />
           ) : (

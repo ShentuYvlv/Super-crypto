@@ -153,14 +153,35 @@ def autoresearch(
     max_runs: int | None = typer.Option(None, "--max-runs", min=1),
     no_llm: bool = typer.Option(False, "--no-llm"),
 ) -> None:
-    typer.echo(
-        run_loop(
-            config,
-            autoresearch_config_path=autoresearch_config,
-            max_runs=max_runs,
-            use_llm=not no_llm,
-        )
+    result = run_loop(
+        config,
+        autoresearch_config_path=autoresearch_config,
+        max_runs=max_runs,
+        use_llm=not no_llm,
     )
+    typer.echo(f"AutoResearch run_id: {result['run_id']}")
+    typer.echo(f"status: {result['status']}")
+    typer.echo(f"created_at: {result['created_at']}")
+    typer.echo(f"config: {result['config_path']}")
+    typer.echo(f"model_mode: {result['model_status']['mode']}")
+    typer.echo(f"model_reason: {result['model_status']['reason']}")
+    typer.echo(f"recommendation: {result['recommendation']}")
+    typer.echo(f"manifest: {result['manifest_path']}")
+    typer.echo("iterations:")
+    for iteration in result["iterations"]:
+        experiment = iteration["validation_result"]["experiment"]
+        acceptance = iteration["validation_acceptance"]
+        metrics = experiment["metrics"]
+        typer.echo(
+            "  "
+            f"#{iteration['iteration']} "
+            f"{experiment['experiment_id']} "
+            f"{experiment['created_at']} "
+            f"{acceptance['reason']} "
+            f"trades={metrics['trade_count']} "
+            f"net={metrics['net_return']:.2%}"
+        )
+        typer.echo(f"     started={iteration['started_at']} completed={iteration['completed_at']}")
 
 
 @app.command("leakage-check")
