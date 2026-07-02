@@ -163,6 +163,50 @@ def test_phase1_auto_detects_yaml_windows_and_splits_train_holdout(tmp_path, mon
     assert isinstance(result_row["threshold"], float)
 
 
+def test_phase1_reports_window_coverage_and_positive_sample_gaps(tmp_path, monkeypatch):
+    monkeypatch.setattr(phase1_prediction, "DATA_ROOT", tmp_path)
+    monkeypatch.setattr(phase1_prediction, "REPORT_ROOT", tmp_path / "reports")
+    ohlcv_dir = tmp_path / "processed" / "ohlcv" / "1h"
+    ohlcv_dir.mkdir(parents=True)
+    _ohlcv().to_parquet(ohlcv_dir / "MMTUSDT.parquet", index=False)
+    config = _config()
+    config["minimum_labels_to_run"] = 1
+    config["event_windows"] = [
+        {
+            "window_id": "missing_positive",
+            "symbol": "MMTUSDT",
+            "split": "train",
+            "start": "2026-01-01T00:00:00Z",
+            "end": "2026-01-01T02:00:00Z",
+            "label_quality": "A",
+        },
+        {
+            "window_id": "not_covered",
+            "symbol": "MMTUSDT",
+            "split": "holdout",
+            "start": "2025-12-01T00:00:00Z",
+            "end": "2025-12-02T00:00:00Z",
+            "label_quality": "A",
+        },
+    ]
+
+    result = phase1_prediction.run(config, ["MMTUSDT"], "train_validation")
+
+    experiment = result["experiment"]
+    diagnostics = pd.read_csv(tmp_path / "processed" / "phase1" / "window_diagnostics.csv")
+    markdown = (tmp_path / "reports" / experiment["experiment_id"] / "report.md").read_text(
+        encoding="utf-8"
+    )
+    assert experiment["status"] == "needs_positive_samples"
+    assert experiment["failure_reason"] == "no_positive_samples"
+    assert experiment["positive_sample_count"] == 0
+    assert experiment["train_positive_count"] == 0
+    assert set(diagnostics["status"]) == {"missing_positive_sample", "window_not_covered"}
+    assert "Window Diagnostics" in markdown
+    assert "missing_positive_sample" in markdown
+    assert "window_not_covered" in markdown
+
+
 def test_phase1_uses_event_window_symbols_instead_of_fallback_symbols(tmp_path, monkeypatch):
     monkeypatch.setattr(phase1_prediction, "DATA_ROOT", tmp_path)
     monkeypatch.setattr(phase1_prediction, "REPORT_ROOT", tmp_path / "reports")
@@ -275,3 +319,32 @@ def test_phase1_merges_real_optional_external_features(tmp_path, monkeypatch):
     assert row["orderbook_slippage_500"] == 9.0
     assert row["cex_inflow_usd"] == 250000.0
     assert row["whale_transfer_count"] == 1.0
+
+
+def test_phase1_merge_asof_accepts_mixed_datetime_precision():
+    left = pd.DataFrame(
+        {
+            "open_time": pd.Series(
+                ["2026-01-01T00:00:00Z"],
+                dtype="datetime64[us, UTC]",
+            )
+        }
+    )
+    right = pd.DataFrame(
+        {
+            "snapshot_time": pd.Series(
+                ["2026-01-01T00:00:00Z"],
+                dtype="datetime64[ns, UTC]",
+            ),
+            "value": [1.0],
+        }
+    )
+
+    result = phase1_prediction._merge_asof(
+        left,
+        right,
+        time_column="snapshot_time",
+        columns=["value"],
+    )
+
+    assert result["value"].tolist() == [1.0]

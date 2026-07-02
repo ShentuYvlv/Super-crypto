@@ -54,7 +54,14 @@ def run(config_path: str, symbols: list[str] | None = None) -> dict:
                 frame = normalize_open_interest(symbol, [snapshot])
             except httpx.HTTPError:
                 if existing.is_empty():
-                    raise
+                    results[symbol] = {
+                        "rows": 0,
+                        "used_cache": False,
+                        "status": "failed",
+                        "error": "network_error_no_cache",
+                        "oi_change_window": 0.0,
+                    }
+                    continue
                 frame = existing.tail(1)
                 used_cache = True
             combined = (

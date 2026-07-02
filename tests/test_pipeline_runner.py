@@ -206,6 +206,82 @@ stages:
     assert result["stages"]["run_phase1_prediction"]["symbols"] == ["RIVERUSDT"]
 
 
+def test_pipeline_ingest_receives_full_config_for_union_symbols(tmp_path, monkeypatch):
+    config_path = tmp_path / "pipeline.yaml"
+    config_path.write_text(
+        """
+name: test_pipeline
+data:
+  symbols_mode: union
+  timeframes: [1h]
+splits:
+  symbols: [BTCUSDT]
+  train:
+    start: "2026-01-01T00:00:00Z"
+    end: "2026-01-10T00:00:00Z"
+  validation:
+    start: "2026-01-11T00:00:00Z"
+    end: "2026-01-20T00:00:00Z"
+  holdout:
+    start: "2026-01-21T00:00:00Z"
+    end: "2026-01-30T00:00:00Z"
+  holdout_policy:
+    require_final_flag: true
+    max_manual_runs: 1
+  purge_bars: 2
+phase1_prediction:
+  event_windows:
+    - window_id: river_window
+      symbol: RIVERUSDT
+      split: train
+      start: "2026-01-01T00:00:00Z"
+      end: "2026-01-02T00:00:00Z"
+stages:
+  ingest:
+    enabled: true
+""",
+        encoding="utf-8",
+    )
+    captured = {}
+
+    class FakePipelineStore:
+        runs: list[dict] = []
+        stages: list[dict] = []
+
+        def list_runs(self):
+            return self.runs
+
+        def list_stages(self, _run_id):
+            return self.stages
+
+        def upsert_run(self, payload):
+            self.runs.append(payload)
+
+        def upsert_stage(self, payload):
+            self.stages.append(payload)
+
+    class FakeExperimentStore:
+        def holdout_run_count(self):
+            return 0
+
+    def fake_ingest(config):
+        captured["symbols_mode"] = config["data"]["symbols_mode"]
+        captured["has_splits"] = "splits" in config
+        captured["has_phase1"] = "phase1_prediction" in config
+        return {}
+
+    monkeypatch.setattr(pipeline_runner, "PipelineStore", FakePipelineStore)
+    monkeypatch.setattr(pipeline_runner, "ExperimentStore", FakeExperimentStore)
+    monkeypatch.setattr(pipeline_runner, "ingest_market_snapshots", fake_ingest)
+    monkeypatch.setattr(pipeline_runner, "ingest_klines", fake_ingest)
+    monkeypatch.setattr(pipeline_runner, "ingest_funding", fake_ingest)
+    monkeypatch.setattr(pipeline_runner, "ingest_open_interest", fake_ingest)
+
+    pipeline_runner.run_pipeline(str(config_path), "train_validation", only_stage="ingest")
+
+    assert captured == {"symbols_mode": "union", "has_splits": True, "has_phase1": True}
+
+
 def test_pipeline_injects_top_level_splits_into_experiment_config(tmp_path, monkeypatch):
     config_path = tmp_path / "pipeline.yaml"
     config_path.write_text(

@@ -166,8 +166,17 @@ def _merge_asof(
         for column in columns:
             result[column] = 0.0
         return result
+    result["open_time"] = pd.to_datetime(
+        result["open_time"],
+        utc=True,
+        errors="coerce",
+    ).astype("datetime64[ns, UTC]")
     other = data.copy()
-    other[time_column] = pd.to_datetime(other[time_column], utc=True, errors="coerce")
+    other[time_column] = pd.to_datetime(
+        other[time_column],
+        utc=True,
+        errors="coerce",
+    ).astype("datetime64[ns, UTC]")
     other = other.dropna(subset=[time_column]).sort_values(time_column)
     other = other.rename(columns={time_column: "open_time"})
     for column in columns:
@@ -613,6 +622,84 @@ def _load_yaml_window_labels(config: dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=LABEL_COLUMNS)
 
 
+def _window_diagnostics(config: dict[str, Any], symbols: list[str]) -> list[dict[str, Any]]:
+    timeframe = config["timeframe"]
+    lead_time = pd.Timedelta(hours=float(config["lead_time_hours"]))
+    rows: list[dict[str, Any]] = []
+    for window in config.get("event_windows", []):
+        if not isinstance(window, dict) or not window.get("symbol"):
+            continue
+        symbol = str(window["symbol"])
+        frame = _feature_frame(symbol, timeframe)
+        start = _window_timestamp(window, "start")
+        end = _window_timestamp(window, "end")
+        if frame.empty:
+            rows.append(
+                {
+                    "window_id": window.get("window_id", ""),
+                    "symbol": symbol,
+                    "split": window.get("split", "train"),
+                    "lead_time_hours": float(config["lead_time_hours"]),
+                    "window_start": to_iso(start.to_pydatetime()),
+                    "window_end": to_iso(end.to_pydatetime()),
+                    "data_start": None,
+                    "data_end": None,
+                    "window_rows": 0,
+                    "detected_event_start": None,
+                    "positive_sample_time": None,
+                    "has_positive_sample": False,
+                    "status": "missing_ohlcv",
+                    "reason": f"no {timeframe} OHLCV file",
+                }
+            )
+            continue
+        data_start = pd.Timestamp(frame["open_time"].min())
+        data_end = pd.Timestamp(frame["open_time"].max())
+        window_rows = int(((frame["open_time"] >= start) & (frame["open_time"] <= end)).sum())
+        detected = _auto_detect_event_in_window(frame, window, config)
+        reason = ""
+        status = "covered"
+        detected_event_start = None
+        positive_sample_time = None
+        has_positive_sample = False
+        if window_rows == 0:
+            status = "window_not_covered"
+            reason = (
+                "local data covers "
+                f"{to_iso(data_start.to_pydatetime())} to {to_iso(data_end.to_pydatetime())}"
+            )
+        elif detected is None:
+            status = "no_detected_event"
+            reason = "window has bars but auto detector returned no event"
+        else:
+            sample_time = detected["event_start"] - lead_time
+            detected_event_start = to_iso(detected["event_start"].to_pydatetime())
+            positive_sample_time = to_iso(sample_time.to_pydatetime())
+            has_positive_sample = _sample_at_or_before(frame, sample_time) is not None
+            if not has_positive_sample:
+                status = "missing_positive_sample"
+                reason = f"need bars at or before {positive_sample_time}"
+        rows.append(
+            {
+                "window_id": window.get("window_id", ""),
+                "symbol": symbol,
+                "split": window.get("split", "train"),
+                "lead_time_hours": float(config["lead_time_hours"]),
+                "window_start": to_iso(start.to_pydatetime()),
+                "window_end": to_iso(end.to_pydatetime()),
+                "data_start": to_iso(data_start.to_pydatetime()),
+                "data_end": to_iso(data_end.to_pydatetime()),
+                "window_rows": window_rows,
+                "detected_event_start": detected_event_start,
+                "positive_sample_time": positive_sample_time,
+                "has_positive_sample": has_positive_sample,
+                "status": status,
+                "reason": reason,
+            }
+        )
+    return rows
+
+
 def _symbols_for_phase1(config: dict[str, Any], symbols: list[str]) -> list[str]:
     window_symbols = [
         str(window["symbol"])
@@ -656,6 +743,7 @@ def _build_dataset(
                     "split": event.get("split", "train"),
                 }
             )
+            sample["sample_role"] = "positive"
             rows.append(sample)
 
         start_gap = pd.Timedelta(hours=float(config.get("negative_gap_hours", 48)))
@@ -698,6 +786,7 @@ def _build_dataset(
                     "event_start": to_iso(event["event_start"].to_pydatetime()),
                     "sample_time": to_iso(pd.Timestamp(negative["open_time"]).to_pydatetime()),
                     "split": event.get("split", "train"),
+                    "sample_role": "negative",
                 }
             )
             rows.append(row)
@@ -761,6 +850,51 @@ def _split_dataset(dataset: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     if train.empty and not holdout.empty:
         train = dataset[dataset["split"] != "holdout"].copy()
     return train, holdout
+
+
+def _sample_distribution(dataset: pd.DataFrame) -> dict[str, int]:
+    if dataset.empty or "label" not in dataset.columns:
+        return {
+            "positive_sample_count": 0,
+            "negative_sample_count": 0,
+            "train_sample_count": 0,
+            "train_positive_count": 0,
+            "holdout_sample_count": 0,
+            "holdout_positive_count": 0,
+        }
+    train, holdout = _split_dataset(dataset)
+    return {
+        "positive_sample_count": int(dataset["label"].sum()),
+        "negative_sample_count": int((dataset["label"] == 0).sum()),
+        "train_sample_count": int(len(train)),
+        "train_positive_count": int(train["label"].sum()) if not train.empty else 0,
+        "holdout_sample_count": int(len(holdout)),
+        "holdout_positive_count": int(holdout["label"].sum()) if not holdout.empty else 0,
+    }
+
+
+def _status_for_dataset(
+    labels: pd.DataFrame,
+    dataset: pd.DataFrame,
+    config: dict[str, Any],
+) -> tuple[str, str | None]:
+    distribution = _sample_distribution(dataset)
+    minimum_labels = int(config.get("minimum_labels_to_run", 1))
+    expected_holdout = (
+        "split" in labels.columns and labels["split"].astype(str).eq("holdout").any()
+    ) or any(
+        isinstance(window, dict) and window.get("split") == "holdout"
+        for window in config.get("event_windows", [])
+    )
+    if len(labels) < minimum_labels:
+        return "needs_labels", "not_enough_event_labels"
+    if distribution["positive_sample_count"] == 0:
+        return "needs_positive_samples", "no_positive_samples"
+    if distribution["train_positive_count"] == 0:
+        return "needs_train_samples", "no_train_positive_samples"
+    if expected_holdout and distribution["holdout_positive_count"] == 0:
+        return "needs_holdout_samples", "no_holdout_positive_samples"
+    return "completed", None
 
 
 def _empty_result(
@@ -928,6 +1062,13 @@ def _write_report(report_dir: Path, payload: dict[str, Any]) -> tuple[str, str]:
         f"- Sample count: {payload['sample_count']}",
         f"- Candidate path: {payload['candidate_path']}",
         f"- Label template: {payload['label_template_path']}",
+        f"- Window diagnostics: {payload['window_diagnostics_path']}",
+        f"- Positive samples: {payload['positive_sample_count']}",
+        f"- Negative samples: {payload['negative_sample_count']}",
+        f"- Train samples: {payload['train_sample_count']}",
+        f"- Train positives: {payload['train_positive_count']}",
+        f"- Holdout samples: {payload['holdout_sample_count']}",
+        f"- Holdout positives: {payload['holdout_positive_count']}",
         "",
         "## Experiments",
         "",
@@ -945,6 +1086,34 @@ def _write_report(report_dir: Path, payload: dict[str, Any]) -> tuple[str, str]:
                 "{holdout_precision:.3f}/{holdout_recall:.3f} | {threshold:.6f} | {status} |"
             ).format(**result)
         )
+    lines.extend(
+        [
+            "",
+            "## Window Diagnostics",
+            "",
+            (
+                "| Window | Symbol | Split | Rows In Window | Detected Event | "
+                "Positive Sample | Status | Reason |"
+            ),
+            "|---|---|---|---:|---|---|---|---|",
+        ]
+    )
+    for item in payload["window_diagnostics"]:
+        lines.append(
+            (
+                "| {window_id} | {symbol} | {split} | {window_rows} | "
+                "{detected_event_start} | {positive_sample_time} | {status} | {reason} |"
+            ).format(
+                window_id=item.get("window_id", ""),
+                symbol=item.get("symbol", ""),
+                split=item.get("split", ""),
+                window_rows=item.get("window_rows", 0),
+                detected_event_start=item.get("detected_event_start") or "-",
+                positive_sample_time=item.get("positive_sample_time") or "-",
+                status=item.get("status", ""),
+                reason=item.get("reason", ""),
+            )
+        )
     markdown_path.write_text("\n".join(lines), encoding="utf-8")
     html_rows = "\n".join(
         "<tr>"
@@ -959,6 +1128,27 @@ def _write_report(report_dir: Path, payload: dict[str, Any]) -> tuple[str, str]:
         "</tr>"
         for result in payload["phase1_results"]
     )
+    diagnostic_rows = "\n".join(
+        "<tr>"
+        f"<td>{item.get('window_id', '')}</td>"
+        f"<td>{item.get('symbol', '')}</td>"
+        f"<td>{item.get('split', '')}</td>"
+        f"<td>{item.get('window_rows', 0)}</td>"
+        f"<td>{item.get('detected_event_start') or '-'}</td>"
+        f"<td>{item.get('positive_sample_time') or '-'}</td>"
+        f"<td>{item.get('status', '')}</td>"
+        f"<td>{item.get('reason', '')}</td>"
+        "</tr>"
+        for item in payload["window_diagnostics"]
+    )
+    positive_line = (
+        f"<p>Positive samples: {payload['positive_sample_count']} / "
+        f"Negative samples: {payload['negative_sample_count']}</p>"
+    )
+    train_holdout_line = (
+        f"<p>Train positives: {payload['train_positive_count']} / "
+        f"Holdout positives: {payload['holdout_positive_count']}</p>"
+    )
     html_path.write_text(
         f"""
         <html><head><meta charset="utf-8"><title>Phase1 Prediction</title></head>
@@ -966,12 +1156,23 @@ def _write_report(report_dir: Path, payload: dict[str, Any]) -> tuple[str, str]:
           <h1>Phase1 Prediction {payload['experiment_id']}</h1>
           <p>Status: {payload['status']}</p>
           <p>Labels: {payload['label_count']} / Samples: {payload['sample_count']}</p>
+          {positive_line}
+          {train_holdout_line}
+          <p>Window diagnostics: {payload['window_diagnostics_path']}</p>
           <table border="1" cellspacing="0" cellpadding="6">
             <thead><tr>
               <th>Experiment</th><th>Model</th><th>Train F1</th><th>Holdout F1</th>
               <th>Train P/R</th><th>Holdout P/R</th><th>Threshold</th><th>Status</th>
             </tr></thead>
             <tbody>{html_rows}</tbody>
+          </table>
+          <h2>Window Diagnostics</h2>
+          <table border="1" cellspacing="0" cellpadding="6">
+            <thead><tr>
+              <th>Window</th><th>Symbol</th><th>Split</th><th>Rows</th>
+              <th>Detected Event</th><th>Positive Sample</th><th>Status</th><th>Reason</th>
+            </tr></thead>
+            <tbody>{diagnostic_rows}</tbody>
           </table>
         </body></html>
         """,
@@ -985,6 +1186,9 @@ def run(config: dict[str, Any], symbols: list[str], split: str) -> dict[str, Any
     symbols = _symbols_for_phase1(config, symbols)
     output_dir = ensure_directory(DATA_ROOT / "processed" / "phase1")
     candidate_details = generate_label_candidates(config, symbols)
+    window_diagnostics = _window_diagnostics(config, symbols)
+    window_diagnostics_path = output_dir / "window_diagnostics.csv"
+    pd.DataFrame(window_diagnostics).to_csv(window_diagnostics_path, index=False)
     labels = _load_labels(config)
     labels.to_csv(output_dir / "labels_used.csv", index=False)
     dataset = _build_dataset(config, symbols, labels) if not labels.empty else pd.DataFrame()
@@ -999,6 +1203,8 @@ def run(config: dict[str, Any], symbols: list[str], split: str) -> dict[str, Any
         if feature_set.name in set(config.get("experiments", [item.name for item in FEATURE_SETS]))
     ]
     best = max(results, key=lambda item: item["train_f1"]) if results else {}
+    distribution = _sample_distribution(dataset)
+    status, failure_reason = _status_for_dataset(labels, dataset, config)
     experiment_id = hash_payload(
         {
             "type": "phase1_prediction",
@@ -1007,11 +1213,6 @@ def run(config: dict[str, Any], symbols: list[str], split: str) -> dict[str, Any
             "sample_count": len(dataset),
         }
     )[:12]
-    status = (
-        "completed"
-        if len(labels) >= int(config.get("minimum_labels_to_run", 1))
-        else "needs_labels"
-    )
     report_dir = ensure_directory(REPORT_ROOT / experiment_id)
     payload = {
         "experiment_id": experiment_id,
@@ -1025,7 +1226,7 @@ def run(config: dict[str, Any], symbols: list[str], split: str) -> dict[str, Any
         "data_snapshot_hash": hash_payload(candidate_details),
         "git_commit_hash": "unknown",
         "created_at": to_iso(utc_now()),
-        "failure_reason": "not_enough_manual_labels" if status == "needs_labels" else None,
+        "failure_reason": failure_reason if status != "completed" else None,
         "metrics": {
             "net_return": 0.0,
             "sharpe": 0.0,
@@ -1056,12 +1257,14 @@ def run(config: dict[str, Any], symbols: list[str], split: str) -> dict[str, Any
             "threshold": float(best.get("threshold", 0.0)),
             "label_count": int(len(labels)),
             "sample_count": int(len(dataset)),
-            "train_sample_count": int(best.get("train_sample_count", 0)),
-            "holdout_sample_count": int(best.get("holdout_sample_count", 0)),
+            **distribution,
         },
         "phase1_results": results,
         "label_count": int(len(labels)),
         "sample_count": int(len(dataset)),
+        **distribution,
+        "window_diagnostics": window_diagnostics,
+        "window_diagnostics_path": str(window_diagnostics_path),
         "dataset_path": str(dataset_path),
         **candidate_details,
     }

@@ -73,8 +73,55 @@ export type ExperimentMetrics = {
   precision?: number;
   recall?: number;
   auc?: number;
+  train_f1?: number;
+  train_precision?: number;
+  train_recall?: number;
+  train_auc?: number;
+  holdout_f1?: number;
+  holdout_precision?: number;
+  holdout_recall?: number;
+  holdout_auc?: number;
+  threshold?: number;
   label_count?: number;
   sample_count?: number;
+  positive_sample_count?: number;
+  negative_sample_count?: number;
+  train_sample_count?: number;
+  train_positive_count?: number;
+  holdout_sample_count?: number;
+  holdout_positive_count?: number;
+};
+
+export type Phase1WindowDiagnostic = {
+  window_id?: string;
+  symbol: string;
+  split: string;
+  lead_time_hours?: number;
+  window_start?: string | null;
+  window_end?: string | null;
+  data_start?: string | null;
+  data_end?: string | null;
+  window_rows: number;
+  detected_event_start?: string | null;
+  positive_sample_time?: string | null;
+  has_positive_sample?: boolean;
+  status: string;
+  reason?: string;
+};
+
+export type Phase1Diagnostics = {
+  window_diagnostics: Phase1WindowDiagnostic[];
+  window_diagnostics_path?: string | null;
+  dataset_path?: string | null;
+  candidate_path?: string | null;
+  label_template_path?: string | null;
+  label_count: number;
+  sample_count: number;
+  positive_sample_count: number;
+  negative_sample_count: number;
+  train_positive_count: number;
+  holdout_positive_count: number;
+  phase1_results: Array<Record<string, unknown>>;
 };
 
 export type Experiment = {
@@ -115,6 +162,7 @@ export type Experiment = {
 };
 
 export type ExperimentDetail = Experiment & {
+  phase1_diagnostics?: Phase1Diagnostics | null;
   signals: Signal[];
   trades: Trade[];
   equity_curve: Array<{ exit_time: string; equity: number }>;

@@ -116,6 +116,8 @@ function BacktestContent() {
   );
   const selectedTradeDetail =
     tradeDetail.data.trade_id === selectedTradeId ? tradeDetail.data : EMPTY_TRADE_DETAIL;
+  const isPhase1 = experimentDetail.strategy === "PHASE1";
+  const phase1Diagnostics = experimentDetail.phase1_diagnostics;
 
   function toggleExperiment(experimentId: string) {
     setSelectedExperimentIds((current) => {
@@ -244,16 +246,28 @@ function BacktestContent() {
           <p className="mt-3 text-lg font-semibold">{displayDateTime(experimentDetail.created_at)}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-muted">净收益</p>
-          <p className="mt-3 text-2xl font-semibold text-positive">{(experimentDetail.metrics.net_return * 100).toFixed(1)}%</p>
+          <p className="text-sm text-muted">{isPhase1 ? "训练F1" : "净收益"}</p>
+          <p className="mt-3 text-2xl font-semibold text-positive">
+            {isPhase1
+              ? `${((experimentDetail.metrics.train_f1 ?? experimentDetail.metrics.f1 ?? 0) * 100).toFixed(1)}%`
+              : `${(experimentDetail.metrics.net_return * 100).toFixed(1)}%`}
+          </p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-muted">夏普</p>
-          <p className="mt-3 text-2xl font-semibold">{experimentDetail.metrics.sharpe.toFixed(2)}</p>
+          <p className="text-sm text-muted">{isPhase1 ? "留出F1" : "夏普"}</p>
+          <p className="mt-3 text-2xl font-semibold">
+            {isPhase1
+              ? `${((experimentDetail.metrics.holdout_f1 ?? 0) * 100).toFixed(1)}%`
+              : experimentDetail.metrics.sharpe.toFixed(2)}
+          </p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-muted">剔除前 5 笔后</p>
-          <p className="mt-3 text-2xl font-semibold">{(experimentDetail.metrics.top5_removed_net_return * 100).toFixed(1)}%</p>
+          <p className="text-sm text-muted">{isPhase1 ? "正样本" : "剔除前 5 笔后"}</p>
+          <p className="mt-3 text-2xl font-semibold">
+            {isPhase1
+              ? `${experimentDetail.metrics.positive_sample_count ?? 0}`
+              : `${(experimentDetail.metrics.top5_removed_net_return * 100).toFixed(1)}%`}
+          </p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted">结论</p>
@@ -265,6 +279,81 @@ function BacktestContent() {
           <p className="mt-2 text-xs text-muted">{displayText(experimentDetail.parameter_selection_reason ?? "-")}</p>
         </Card>
       </div>
+      {isPhase1 ? (
+        <Card className="p-5">
+          <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold">Phase1 诊断</h3>
+              <p className="mt-1 text-sm text-muted">
+                这里看的是“拉盘前兆预测”样本构建，不是交易回测；没有正样本时 F1 必然为空。
+              </p>
+            </div>
+            <p className="text-xs text-muted">
+              标签 {phase1Diagnostics?.label_count ?? experimentDetail.metrics.label_count ?? 0} /
+              样本 {phase1Diagnostics?.sample_count ?? experimentDetail.metrics.sample_count ?? 0}
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-lg bg-[#11161d] p-3">
+              <p className="text-xs text-muted">训练正样本</p>
+              <p className="mt-1 text-xl font-semibold">{experimentDetail.metrics.train_positive_count ?? 0}</p>
+            </div>
+            <div className="rounded-lg bg-[#11161d] p-3">
+              <p className="text-xs text-muted">留出正样本</p>
+              <p className="mt-1 text-xl font-semibold">{experimentDetail.metrics.holdout_positive_count ?? 0}</p>
+            </div>
+            <div className="rounded-lg bg-[#11161d] p-3">
+              <p className="text-xs text-muted">负样本</p>
+              <p className="mt-1 text-xl font-semibold">{experimentDetail.metrics.negative_sample_count ?? 0}</p>
+            </div>
+            <div className="rounded-lg bg-[#11161d] p-3">
+              <p className="text-xs text-muted">阈值</p>
+              <p className="mt-1 text-xl font-semibold">
+                {experimentDetail.metrics.threshold == null ? "-" : experimentDetail.metrics.threshold.toFixed(6)}
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="text-xs text-muted">
+                <tr>
+                  <th className="py-2 pr-4">窗口</th>
+                  <th className="py-2 pr-4">标的</th>
+                  <th className="py-2 pr-4">切分</th>
+                  <th className="py-2 pr-4">窗口K线</th>
+                  <th className="py-2 pr-4">数据范围</th>
+                  <th className="py-2 pr-4">事件时间</th>
+                  <th className="py-2 pr-4">正样本时间</th>
+                  <th className="py-2 pr-4">状态</th>
+                  <th className="py-2 pr-4">原因</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(phase1Diagnostics?.window_diagnostics ?? []).map((item) => (
+                  <tr key={`${item.symbol}-${item.window_id ?? item.window_start}`} className="border-t border-border">
+                    <td className="py-3 pr-4">{item.window_id ?? "-"}</td>
+                    <td className="py-3 pr-4 font-semibold">{item.symbol}</td>
+                    <td className="py-3 pr-4">{displayText(item.split)}</td>
+                    <td className="py-3 pr-4">{item.window_rows}</td>
+                    <td className="py-3 pr-4 text-xs text-muted">
+                      {item.data_start && item.data_end
+                        ? `${displayDateTime(item.data_start)} 至 ${displayDateTime(item.data_end)}`
+                        : "-"}
+                    </td>
+                    <td className="py-3 pr-4 text-xs">{displayDateTime(item.detected_event_start)}</td>
+                    <td className="py-3 pr-4 text-xs">{displayDateTime(item.positive_sample_time)}</td>
+                    <td className="py-3 pr-4">{displayText(item.status)}</td>
+                    <td className="py-3 pr-4 text-muted">{displayText(item.reason)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {(phase1Diagnostics?.window_diagnostics ?? []).length === 0 ? (
+              <EmptyState title="暂无窗口诊断" description="重新跑 Phase1 后会写入窗口覆盖和样本构建诊断。" />
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
       <Card className="p-5">
         <div className="grid gap-4 text-sm leading-6 text-muted lg:grid-cols-3">
           <div>

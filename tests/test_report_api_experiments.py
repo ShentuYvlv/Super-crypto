@@ -50,3 +50,43 @@ def test_delete_experiments_api_cascades_records_and_artifacts(tmp_path, monkeyp
     assert not html_path.exists()
     assert not markdown_path.exists()
     assert not trades_path.exists()
+
+
+def test_experiment_detail_includes_phase1_diagnostics(tmp_path, monkeypatch):
+    store = ExperimentStore(tmp_path / "experiments.db")
+    diagnostics_path = tmp_path / "phase1" / "window_diagnostics.csv"
+    diagnostics_path.parent.mkdir(parents=True)
+    diagnostics_path.write_text(
+        (
+            "window_id,symbol,split,window_rows,status,reason\n"
+            "river,RIVERUSDT,train,0,window_not_covered,local data missing\n"
+        ),
+        encoding="utf-8",
+    )
+    store.upsert(
+        "experiments",
+        "experiment_id",
+        {
+            "experiment_id": "phase1-a",
+            "strategy": "PHASE1",
+            "created_at": "2026-01-01T00:00:00Z",
+            "metrics": {
+                "net_return": 0.0,
+                "sample_count": 0,
+                "label_count": 0,
+                "positive_sample_count": 0,
+                "negative_sample_count": 0,
+                "train_positive_count": 0,
+                "holdout_positive_count": 0,
+            },
+            "window_diagnostics_path": str(diagnostics_path),
+        },
+    )
+    monkeypatch.setattr(experiments, "experiment_store", lambda: store)
+    monkeypatch.setattr(experiments, "list_signals", lambda: [])
+
+    response = experiments.get_experiment("phase1-a")
+    diagnostics = response["payload"]["phase1_diagnostics"]
+
+    assert diagnostics["window_diagnostics"][0]["status"] == "window_not_covered"
+    assert diagnostics["positive_sample_count"] == 0

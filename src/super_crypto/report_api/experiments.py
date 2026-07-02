@@ -14,6 +14,7 @@ from super_crypto.report_api.loaders import (
     artifact_url,
     frame_to_records,
     list_signals,
+    read_csv_if_exists,
     read_yaml_if_exists,
 )
 from super_crypto.report_api.loaders import (
@@ -84,6 +85,47 @@ def _vectorbt_diff(experiment: dict) -> dict:
     }
 
 
+def _phase1_diagnostics(experiment: dict) -> dict:
+    path = experiment.get("window_diagnostics_path")
+    diagnostics = experiment.get("window_diagnostics")
+    if diagnostics is None and path:
+        diagnostics = frame_to_records(read_csv_if_exists(Path(path)))
+    if diagnostics is None:
+        diagnostics = []
+    return {
+        "window_diagnostics": diagnostics,
+        "window_diagnostics_path": path,
+        "dataset_path": experiment.get("dataset_path"),
+        "candidate_path": experiment.get("candidate_path"),
+        "label_template_path": experiment.get("label_template_path"),
+        "label_count": experiment.get(
+            "label_count",
+            experiment.get("metrics", {}).get("label_count", 0),
+        ),
+        "sample_count": experiment.get(
+            "sample_count",
+            experiment.get("metrics", {}).get("sample_count", 0),
+        ),
+        "positive_sample_count": experiment.get(
+            "positive_sample_count",
+            experiment.get("metrics", {}).get("positive_sample_count", 0),
+        ),
+        "negative_sample_count": experiment.get(
+            "negative_sample_count",
+            experiment.get("metrics", {}).get("negative_sample_count", 0),
+        ),
+        "train_positive_count": experiment.get(
+            "train_positive_count",
+            experiment.get("metrics", {}).get("train_positive_count", 0),
+        ),
+        "holdout_positive_count": experiment.get(
+            "holdout_positive_count",
+            experiment.get("metrics", {}).get("holdout_positive_count", 0),
+        ),
+        "phase1_results": experiment.get("phase1_results", []),
+    }
+
+
 @router.get("")
 def list_experiments():
     payload = load_experiments()
@@ -136,6 +178,9 @@ def get_experiment(experiment_id: str):
     curve = equity_curve(trades_frame)
     payload = {
         **experiment,
+        "phase1_diagnostics": _phase1_diagnostics(experiment)
+        if experiment.get("strategy") == "PHASE1"
+        else None,
         "signals": signals,
         "trades": trades,
         "equity_curve": frame_to_records(curve[["exit_time", "equity"]]) if not curve.empty else [],

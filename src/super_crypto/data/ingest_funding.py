@@ -31,7 +31,13 @@ def run(config_path: str, symbols: list[str] | None = None) -> dict:
                 frame = normalize_funding(symbol, history)
             except httpx.HTTPError:
                 if not processed_path.exists():
-                    raise
+                    result[symbol] = {
+                        "rows": 0,
+                        "used_cache": False,
+                        "status": "failed",
+                        "error": "network_error_no_cache",
+                    }
+                    continue
                 frame = pl.read_parquet(processed_path)
                 used_cache = True
             frame.write_parquet(raw_path)

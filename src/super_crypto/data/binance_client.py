@@ -76,10 +76,26 @@ class BinanceFuturesClient:
         result = self._get("/fapi/v1/ticker/24hr")
         return result if isinstance(result, list) else [result]
 
-    def klines(self, symbol: str, interval: str, limit: int = 1500) -> list[list[Any]]:
+    def klines(
+        self,
+        symbol: str,
+        interval: str,
+        limit: int = 1500,
+        start_time_ms: int | None = None,
+        end_time_ms: int | None = None,
+    ) -> list[list[Any]]:
+        params: dict[str, Any] = {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": min(limit, 1500),
+        }
+        if start_time_ms is not None:
+            params["startTime"] = start_time_ms
+        if end_time_ms is not None:
+            params["endTime"] = end_time_ms
         return self._get(
             "/fapi/v1/klines",
-            params={"symbol": symbol, "interval": interval, "limit": min(limit, 1500)},
+            params=params,
         )
 
     def funding_rate_history(self, symbol: str, limit: int = 200) -> list[dict[str, Any]]:

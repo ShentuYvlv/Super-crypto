@@ -214,7 +214,6 @@ def run_pipeline(
 ) -> dict:
     pipeline_config = load_yaml(config_path)
     validate_pipeline_config(pipeline_config)
-    data_config_ref = _config_ref(pipeline_config, "data", "data_config")
     splits_config_ref = _config_ref(pipeline_config, "splits", "splits_config")
     cycle_config_ref = _config_ref(pipeline_config, "cycle", "cycle_config")
     seed_events_config_ref = _config_ref(pipeline_config, "seed_events", "seed_events_config")
@@ -288,10 +287,10 @@ def run_pipeline(
         try:
             if stage == "ingest":
                 details = {
-                    "market_snapshots": ingest_market_snapshots(data_config_ref),
-                    "klines": ingest_klines(data_config_ref),
-                    "funding": ingest_funding(data_config_ref),
-                    "open_interest": ingest_open_interest(data_config_ref),
+                    "market_snapshots": ingest_market_snapshots(pipeline_config),
+                    "klines": ingest_klines(pipeline_config),
+                    "funding": ingest_funding(pipeline_config),
+                    "open_interest": ingest_open_interest(pipeline_config),
                 }
             elif stage == "build_splits":
                 details = build_split_manifest(splits_config_ref)

@@ -18,6 +18,12 @@ def read_parquet_if_exists(path: Path) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
+def read_csv_if_exists(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame()
+    return pd.read_csv(path)
+
+
 def load_latest_scores() -> pd.DataFrame:
     return read_parquet_if_exists(DATA_ROOT / "processed" / "scores" / "latest.parquet")
 

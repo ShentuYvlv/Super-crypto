@@ -11,8 +11,8 @@ data:
   history_days:
     1m: 7
     5m: 21
-    15m: 45
-    1h: 180
+    15m: 220
+    1h: 220
   market_snapshot_interval_sec: 60
   storage:
     raw_dir: data/raw
@@ -28,15 +28,11 @@ data:
 
 splits:
   symbols:
-    - MMTUSDT
-    - TUTUSDT
-    - WCTUSDT
-    - HEMIUSDT
-    - PROMPTUSDT
+    - RAVEUSDT
+    - STOUSDT
+    - RIVERUSDT
+    - LABUSDT
     - VELVETUSDT
-    - TACUSDT
-    - ACTUSDT
-    - WLDUSDT
   train:
     start: 2026-04-27T00:00:00Z
     end: 2026-05-31T23:59:59Z
@@ -137,7 +133,7 @@ enrichment:
 phase1_prediction:
   enabled: true
   label_source: data/labels/phase1_events.csv
-  timeframe: 1h
+  timeframe: 15m
   lead_time_hours: 4
   minimum_labels_to_run: 10
   allowed_label_quality: [A, B]
@@ -174,14 +170,6 @@ phase1_prediction:
       label_quality: A
       source: yaml_window_auto_detect
       note: VELVET holdout manipulation window.
-    - window_id: siren_seed_holdout_001
-      symbol: SIRENUSDT
-      split: holdout
-      start: "2026-03-11T00:00:00Z"
-      end: "2026-03-31T00:00:00Z"
-      label_quality: A
-      source: yaml_window_auto_detect
-      note: SIREN holdout manipulation window.
     - window_id: lab_seed_holdout_001
       symbol: LABUSDT
       split: holdout
