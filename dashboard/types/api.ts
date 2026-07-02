@@ -490,14 +490,70 @@ export type CycleResearchCandidate = {
     cycle_count: number;
     covered_symbols: number;
     coverage_ratio: number;
+    coverage_score?: number;
+    strength_score?: number;
+    duration_score?: number;
+    stability_score?: number;
+    control_group_separation?: number;
+    over_detection_penalty?: number;
+    duplicate_penalty?: number;
+    concentration_penalty?: number;
     median_pump_return: number;
     median_dump_return: number;
     median_duration_hours: number;
+    cycles_per_symbol_mean?: number;
+    cycles_per_symbol_median?: number;
+    strong_cycles_per_symbol?: number;
+    volatile_cycles_per_symbol?: number;
+    control_cycles_per_symbol?: number;
     matched_seed_event_count: number;
     expanded_event_count: number;
     rejection_reason?: string;
   };
   cycles_by_symbol: Record<string, number>;
+  combined_cycles_path?: string;
+  cycles_csv_path?: string;
+  cycles_by_symbol_path?: string;
+};
+
+export type CycleResearchCycle = {
+  cycle_id: string;
+  symbol: string;
+  timeframe: string;
+  pump_start: string;
+  peak_time: string;
+  dump_end: string;
+  pump_return: number;
+  dump_return: number;
+  pump_duration_hours: number;
+  dump_duration_hours: number;
+  duration_hours: number;
+  rule_id: string;
+  quality_score: number;
+  detection_rule: string;
+};
+
+export type CycleResearchSymbolSummary = {
+  symbol: string;
+  cycle_count: number;
+  median_pump_return: number;
+  median_dump_return: number;
+  median_duration_hours: number;
+};
+
+export type CycleResearchIteration = {
+  iteration: number;
+  hypothesis: {
+    mode?: string;
+    hypothesis?: string;
+    rationale?: string;
+    risk?: string;
+    llm_error?: string;
+  };
+  candidate_count: number;
+  best_candidate_id?: string | null;
+  best_quality?: CycleResearchCandidate["quality"] | null;
+  manifest_path?: string;
 };
 
 export type CycleResearchRun = {
@@ -522,10 +578,22 @@ export type CycleResearchRun = {
   base_cycle_config: Record<string, number | string>;
   timeframe: string;
   symbols: string[];
+  symbol_groups?: Record<string, string[]>;
+  iteration_count?: number;
   candidate_count: number;
   best_candidate_id?: string | null;
   best_cycle_config?: CycleResearchCandidate["cycle_config"] | null;
   best_quality?: CycleResearchCandidate["quality"] | null;
+  best_rule_path?: string | null;
+  best_cycles_path?: string | null;
+  best_cycles_csv_path?: string | null;
+  candidate_scores_path?: string | null;
+  best_rule?: Record<string, number | string>;
+  cycles?: CycleResearchCycle[];
+  cycle_count?: number;
+  cycles_by_symbol_summary?: CycleResearchSymbolSummary[];
+  candidate_scores?: Array<Record<string, number | string>>;
+  iterations?: CycleResearchIteration[];
   applied_path?: string | null;
   candidates: CycleResearchCandidate[];
   manifest_path?: string;

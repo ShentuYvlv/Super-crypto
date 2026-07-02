@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -24,6 +29,70 @@ class DeleteCycleResearchRunsRequest(BaseModel):
     run_ids: list[str] = Field(min_length=1, max_length=200)
 
 
+def _read_table(path: str | None, *, limit: int = 1000) -> list[dict[str, Any]]:
+    if not path:
+        return []
+    file_path = Path(path)
+    if not file_path.exists():
+        return []
+    frame = pd.read_parquet(file_path) if file_path.suffix == ".parquet" else pd.read_csv(file_path)
+    return frame.head(limit).where(pd.notna(frame), None).to_dict(orient="records")
+
+
+def _read_yaml(path: str | None) -> dict[str, Any]:
+    if not path:
+        return {}
+    file_path = Path(path)
+    if not file_path.exists():
+        return {}
+    loaded = yaml.safe_load(file_path.read_text(encoding="utf-8")) or {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _cycle_run_detail(manifest: dict[str, Any]) -> dict[str, Any]:
+    cycles = _read_table(manifest.get("best_cycles_csv_path"), limit=2000)
+    candidate_scores = _read_table(manifest.get("candidate_scores_path"), limit=500)
+    best_rule = _read_yaml(manifest.get("best_rule_path"))
+    by_symbol: dict[str, dict[str, Any]] = {}
+    for row in cycles:
+        symbol = str(row.get("symbol") or "")
+        if not symbol:
+            continue
+        current = by_symbol.setdefault(
+            symbol,
+            {
+                "symbol": symbol,
+                "cycle_count": 0,
+                "median_pump_return": 0.0,
+                "median_dump_return": 0.0,
+                "median_duration_hours": 0.0,
+            },
+        )
+        current["cycle_count"] += 1
+    if cycles:
+        frame = pd.DataFrame(cycles)
+        for symbol, group in frame.groupby("symbol"):
+            by_symbol[str(symbol)] = {
+                "symbol": str(symbol),
+                "cycle_count": int(len(group)),
+                "median_pump_return": float(pd.to_numeric(group["pump_return"]).median()),
+                "median_dump_return": float(pd.to_numeric(group["dump_return"]).median()),
+                "median_duration_hours": float(pd.to_numeric(group["duration_hours"]).median()),
+            }
+    return {
+        **manifest,
+        "best_rule": best_rule,
+        "cycles": cycles,
+        "cycle_count": len(cycles),
+        "cycles_by_symbol_summary": sorted(
+            by_symbol.values(),
+            key=lambda item: item["cycle_count"],
+            reverse=True,
+        ),
+        "candidate_scores": candidate_scores,
+    }
+
+
 @router.get("/runs")
 def list_autoresearch_runs():
     return envelope(list_run_manifests(), source="autoresearch_artifacts")
@@ -38,10 +107,18 @@ def list_cycle_research_runs():
 def get_latest_cycle_research_run():
     manifest = latest_cycle_run_manifest()
     return envelope(
-        manifest,
+        _cycle_run_detail(manifest) if manifest else None,
         source="cycle_research_artifacts",
         data_quality="healthy" if manifest else "empty",
     )
+
+
+@router.get("/cycle-runs/{run_id}")
+def get_cycle_research_run(run_id: str):
+    for manifest in list_cycle_run_manifests():
+        if manifest.get("run_id") == run_id:
+            return envelope(_cycle_run_detail(manifest), source="cycle_research_artifacts")
+    raise HTTPException(status_code=404, detail="CycleResearch run not found")
 
 
 @router.delete("/cycle-runs")

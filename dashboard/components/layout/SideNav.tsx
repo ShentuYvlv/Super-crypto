@@ -9,6 +9,7 @@ const items = [
   { href: "/", label: "总览" },
   { href: "/experiments", label: "实验", activePaths: ["/backtest"] },
   { href: "/phase1", label: "预测实验" },
+  { href: "/cycles", label: "操盘周期" },
   { href: "/autoresearch", label: "研究循环" },
   { href: "/signals", label: "信号" },
   { href: "/symbols", label: "数据", activePaths: ["/data-quality"] },

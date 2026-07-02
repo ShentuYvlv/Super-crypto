@@ -274,6 +274,63 @@ def test_autoresearch_api_returns_latest_manifest(monkeypatch):
     assert response["source"] == "autoresearch_artifacts"
 
 
+def test_autoresearch_api_returns_cycle_research_detail(tmp_path, monkeypatch):
+    monkeypatch.setattr(autoresearch_artifacts, "DATA_ROOT", tmp_path)
+    run_dir = tmp_path / "processed" / "cycle_research" / "runs" / "cycle-a"
+    final_dir = run_dir / "final"
+    final_dir.mkdir(parents=True)
+    best_rule_path = final_dir / "best_rule.yaml"
+    cycles_path = final_dir / "cycles.csv"
+    scores_path = run_dir / "candidate_scores.csv"
+    best_rule_path.write_text(
+        yaml.safe_dump(
+            {
+                "timeframe": "1h",
+                "pump_threshold_min": 0.2,
+                "dump_return_min": 0.12,
+            }
+        ),
+        encoding="utf-8",
+    )
+    cycles_path.write_text(
+        "\n".join(
+            [
+                "cycle_id,symbol,pump_return,dump_return,duration_hours",
+                "RIVERUSDT_1,RIVERUSDT,0.35,-0.18,24",
+                "RIVERUSDT_2,RIVERUSDT,0.25,-0.14,18",
+                "STOUSDT_1,STOUSDT,0.22,-0.16,30",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    scores_path.write_text(
+        "candidate_id,score,cycle_count\ncycle_01,0.82,3\n",
+        encoding="utf-8",
+    )
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "run_id": "cycle-a",
+                "status": "completed",
+                "best_rule_path": str(best_rule_path),
+                "best_cycles_csv_path": str(cycles_path),
+                "candidate_scores_path": str(scores_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    response = autoresearch_api.get_cycle_research_run("cycle-a")
+    payload = response["payload"]
+
+    assert payload["best_rule"]["timeframe"] == "1h"
+    assert payload["cycle_count"] == 3
+    assert payload["cycles"][0]["symbol"] == "RIVERUSDT"
+    assert payload["candidate_scores"][0]["candidate_id"] == "cycle_01"
+    assert payload["cycles_by_symbol_summary"][0]["symbol"] == "RIVERUSDT"
+    assert payload["cycles_by_symbol_summary"][0]["cycle_count"] == 2
+
+
 def test_autoresearch_artifacts_localize_english_recommendations(tmp_path, monkeypatch):
     monkeypatch.setattr(autoresearch_artifacts, "DATA_ROOT", tmp_path)
     run_dir = tmp_path / "processed" / "autoresearch" / "runs" / "run-a"

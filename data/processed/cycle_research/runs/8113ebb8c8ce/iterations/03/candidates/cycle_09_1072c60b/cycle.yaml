@@ -1,0 +1,13 @@
+timeframe: 1h
+pump_threshold_min: 0.18
+pump_threshold_max: 0.8
+dump_return_min: 0.1
+dump_retrace_ratio: 0.55
+max_cycle_hours: 96
+dedupe_gap_hours: 24
+min_peak_distance_from_start_hours: 2.0
+min_pump_duration_hours: 1.5
+max_pump_duration_hours: 48.0
+overlap_dedupe_threshold: 0.5
+rule_id: rule_p0.2_d0.15_r0.5_h96
+notes: 长周期渐进回调定义：适度降低泵阈值与dump_return_min，提高回调比例至0.55，延长周期至96h，捕捉缓慢拉升后持续回落但未完全跌回起点的操纵。

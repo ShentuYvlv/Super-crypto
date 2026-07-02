@@ -24,8 +24,26 @@ cycle_discovery:
       - RIVERUSDT
       - STOUSDT
       - MMTUSDT
-    volatile: []
-    control: []
+      - RAVEUSDT
+      - VELVETUSDT
+      - PIPPINUSDT
+      - SKYAIUSDT
+      - COAIUSDT
+      - MYXUSDT
+      - BSBUSDT
+    volatile:
+      - WLDUSDT
+      - ACTUSDT
+      - PROMPTUSDT
+      - SUIUSDT
+      - XRPUSDT
+      - LINKUSDT
+      - TACUSDT
+    control:
+      - BTCUSDT
+      - ETHUSDT
+      - SOLUSDT
+      - BNBUSDT
   scoring:
     target_cycles_per_symbol: 12
     max_cycles_per_symbol: 80
