@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 import polars as pl
 
-from super_crypto.common.config import load_yaml
+from super_crypto.common.config_symbols import data_config_with_resolved_symbols
 from super_crypto.common.http import binance_offline_cache_enabled
 from super_crypto.common.paths import DATA_ROOT, ensure_parent
 from super_crypto.data.binance_client import BinanceFuturesClient
@@ -21,7 +21,7 @@ def kline_limit(days: int, timeframe: str) -> int:
 def run(
     config_path: str, symbols: list[str] | None = None, timeframes: list[str] | None = None
 ) -> dict:
-    config = load_yaml(config_path)
+    config = data_config_with_resolved_symbols(config_path)
     selected_symbols = symbols or config["symbols"]
     selected_timeframes = timeframes or config["timeframes"]
     offline_cache = binance_offline_cache_enabled()

@@ -5,7 +5,7 @@ import json
 import httpx
 import polars as pl
 
-from super_crypto.common.config import load_yaml
+from super_crypto.common.config_symbols import data_config_with_resolved_symbols
 from super_crypto.common.http import binance_offline_cache_enabled
 from super_crypto.common.paths import DATA_ROOT, ensure_parent
 from super_crypto.common.time import to_iso, utc_now
@@ -27,7 +27,7 @@ def _load_json_cache(path):
 
 
 def run(config_path: str) -> dict:
-    config = load_yaml(config_path)
+    config = data_config_with_resolved_symbols(config_path)
     results = []
     used_cache = False
     offline_cache = binance_offline_cache_enabled()

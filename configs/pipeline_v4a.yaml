@@ -2,16 +2,7 @@ name: v4a_research_pipeline
 
 data:
   name: base_market_data
-  symbols: &research_symbols
-    - MMTUSDT
-    - TUTUSDT
-    - WCTUSDT
-    - HEMIUSDT
-    - PROMPTUSDT
-    - VELVETUSDT
-    - TACUSDT
-    - ACTUSDT
-    - WLDUSDT
+  symbols_mode: union
   timeframes:
     - 1m
     - 5m
@@ -36,18 +27,25 @@ data:
     require_monotonic_timestamps: true
 
 splits:
+  symbols:
+    - MMTUSDT
+    - TUTUSDT
+    - WCTUSDT
+    - HEMIUSDT
+    - PROMPTUSDT
+    - VELVETUSDT
+    - TACUSDT
+    - ACTUSDT
+    - WLDUSDT
   train:
     start: 2026-04-27T00:00:00Z
     end: 2026-05-31T23:59:59Z
-    symbols: *research_symbols
   validation:
     start: 2026-06-01T00:00:00Z
     end: 2026-06-14T23:59:59Z
-    symbols: *research_symbols
   holdout:
     start: 2026-06-15T00:00:00Z
     end: 2026-06-29T23:59:59Z
-    symbols: *research_symbols
   purge_bars: 2
   holdout_policy:
     allow_parameter_search: false
@@ -143,6 +141,64 @@ phase1_prediction:
   lead_time_hours: 4
   minimum_labels_to_run: 10
   allowed_label_quality: [A, B]
+  auto_event_detection:
+    enabled: true
+    pump_return_min: 0.15
+    min_event_gap_hours: 12
+    peak_search_hours: 48
+    dump_search_hours: 72
+  # Phase1 不再要求逐个事件人工标注；这里只填“这个币在这段时间内发生过操纵/拉盘窗口”。
+  # 代码会在窗口内自动定位 event_start / peak_time / dump_end，并写入 data/processed/phase1/labels_used.csv 审计。
+  event_windows:
+    - window_id: river_seed_train_001
+      symbol: RIVERUSDT
+      split: train
+      start: "2025-12-26T00:00:00Z"
+      end: "2026-02-10T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: Replace with the real RIVER manipulation window from the article seed set.
+    - window_id: sto_seed_train_001
+      symbol: STOUSDT
+      split: train
+      start: "2026-03-20T00:00:00Z"
+      end: "2026-04-15T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: Replace with the real STO manipulation window from the article seed set.
+    - window_id: velvet_seed_holdout_001
+      symbol: VELVETUSDT
+      split: holdout
+      start: "2026-05-30T00:00:00Z"
+      end: "2026-07-01T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: VELVET holdout manipulation window.
+    - window_id: siren_seed_holdout_001
+      symbol: SIRENUSDT
+      split: holdout
+      start: "2026-03-11T00:00:00Z"
+      end: "2026-03-31T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: SIREN holdout manipulation window.
+    - window_id: lab_seed_holdout_001
+      symbol: LABUSDT
+      split: holdout
+      start: "2026-04-25T00:00:00Z"
+      end: "2026-07-01T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: LAB holdout manipulation window.
+    - window_id: rave_seed_holdout_001
+      symbol: RAVEUSDT
+      split: holdout
+      start: "2026-03-01T00:00:00Z"
+      end: "2026-05-01T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: RAVE holdout manipulation window.
+
   negative_sample_ratio: 5
   negative_gap_hours: 48
   candidate_cooldown_hours: 24
@@ -157,6 +213,7 @@ phase1_prediction:
     - fr_oi_liquidation
     - fr_oi_liquidation_taker
     - all_available_features
+    - lightgbm_all_features
 
 experiment:
   name: experiment_v4a
@@ -199,26 +256,6 @@ experiment:
       high: 70
       medium: 55
       low: 0
-  splits:
-    train:
-      start: 2026-04-27T00:00:00Z
-      end: 2026-05-31T23:59:59Z
-      symbols: *research_symbols
-    validation:
-      start: 2026-06-01T00:00:00Z
-      end: 2026-06-14T23:59:59Z
-      symbols: *research_symbols
-    holdout:
-      start: 2026-06-15T00:00:00Z
-      end: 2026-06-29T23:59:59Z
-      symbols: *research_symbols
-    purge_bars: 2
-    holdout_policy:
-      allow_parameter_search: false
-      allow_agent_access: false
-      max_manual_runs: 1
-      require_final_flag: true
-      require_clean_experiment_log: true
   parameter_grid:
     support_type: [rolling_low, rolling_close_low, confirmed_pivot_low, pump_since_low]
     first_sell_pressure_threshold: [-0.015, -0.01, -0.005]

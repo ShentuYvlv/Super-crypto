@@ -82,7 +82,9 @@ def _inline_split_symbols(split_config: dict[str, Any]) -> dict[str, Any]:
     split_files = split_config.get("symbol_split_files", {})
     for split_name in ("train", "validation", "holdout"):
         section = {**expanded[split_name]}
-        if "symbols" not in section and split_name in split_files:
+        if "symbols" not in section and "symbols" in split_config:
+            section["symbols"] = list(split_config["symbols"])
+        elif "symbols" not in section and split_name in split_files:
             section["symbols"] = read_symbol_split_file(split_files[split_name])
         expanded[split_name] = section
     expanded.pop("symbol_split_files", None)

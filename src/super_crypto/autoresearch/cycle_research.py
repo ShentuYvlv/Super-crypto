@@ -12,6 +12,7 @@ import yaml
 from super_crypto.autoresearch.artifacts import create_cycle_run_dir, write_json
 from super_crypto.autoresearch.llm_client import AutoResearchLLMClient, llm_status
 from super_crypto.common.config import hash_payload, load_yaml
+from super_crypto.common.config_symbols import data_config_with_resolved_symbols
 from super_crypto.common.paths import DATA_ROOT, resolve_project_path
 from super_crypto.common.time import to_iso, utc_now
 from super_crypto.cycles.detect_pump_dump import detect_cycles
@@ -350,7 +351,7 @@ def run_cycle_research(
     run_limit = int(max_runs or autoresearch_config.get("max_cycle_validation_runs", 3))
     run_limit = max(1, min(run_limit, 20))
     base_cycle = pipeline_config["cycle"]
-    data_config = pipeline_config["data"]
+    data_config = data_config_with_resolved_symbols(pipeline_config)
     seed_events_config = pipeline_config["seed_events"]
     symbols = list(data_config["symbols"])
     timeframe = str(

@@ -9,6 +9,8 @@ from typing import Any
 import pandas as pd
 
 from super_crypto.common.config import hash_file, load_yaml
+from super_crypto.common.config_symbols import data_config_with_resolved_symbols
+from super_crypto.common.config_validation import validate_pipeline_config
 from super_crypto.common.paths import DATA_ROOT
 from super_crypto.common.time import to_iso, utc_now
 from super_crypto.cycles.label_cycles import run as label_cycles
@@ -92,6 +94,25 @@ def _config_ref(
     return pipeline_config.get(path_key, default_path)
 
 
+def _pipeline_experiment_config(
+    experiment_config_ref: str | dict[str, Any],
+    splits_config_ref: str | dict[str, Any],
+) -> dict[str, Any]:
+    experiment_config = load_yaml(experiment_config_ref)
+    if "splits" in experiment_config or "splits_config" in experiment_config:
+        return experiment_config
+    return {**experiment_config, "splits": load_yaml(splits_config_ref)}
+
+
+def _phase1_symbols(phase1_config: dict[str, Any], fallback_symbols: list[str]) -> list[str]:
+    window_symbols = [
+        str(window["symbol"])
+        for window in phase1_config.get("event_windows", [])
+        if isinstance(window, dict) and window.get("symbol")
+    ]
+    return list(dict.fromkeys(window_symbols or fallback_symbols))
+
+
 def _is_stage_fresh(output_paths: list[Path], freshness_seconds: int) -> bool:
     if not output_paths or not all(path.exists() for path in output_paths):
         return False
@@ -139,9 +160,8 @@ def _stage_skip_reason(pipeline_config: dict[str, Any], stage: str, split: str) 
     if not _stage_enabled(pipeline_config, stage):
         return "disabled"
 
-    data_config_ref = _config_ref(pipeline_config, "data", "data_config")
     try:
-        data_config = load_yaml(data_config_ref)
+        data_config = data_config_with_resolved_symbols(pipeline_config)
     except Exception:
         data_config = {}
     symbols = data_config.get("symbols", [])
@@ -193,6 +213,7 @@ def run_pipeline(
     final_flag: bool = False,
 ) -> dict:
     pipeline_config = load_yaml(config_path)
+    validate_pipeline_config(pipeline_config)
     data_config_ref = _config_ref(pipeline_config, "data", "data_config")
     splits_config_ref = _config_ref(pipeline_config, "splits", "splits_config")
     cycle_config_ref = _config_ref(pipeline_config, "cycle", "cycle_config")
@@ -275,7 +296,7 @@ def run_pipeline(
             elif stage == "build_splits":
                 details = build_split_manifest(splits_config_ref)
             elif stage == "detect_cycles":
-                data_config = load_yaml(data_config_ref)
+                data_config = data_config_with_resolved_symbols(pipeline_config)
                 details = label_cycles(cycle_config_ref, data_config["symbols"], timeframe="1h")
             elif stage == "build_event_set":
                 details = build_event_set(seed_events_config_ref, cycle_config_ref)
@@ -308,7 +329,7 @@ def run_pipeline(
                 details = {"score_count": len(scores), "path": path}
             elif stage == "enrich":
                 enrichment_config = load_yaml(enrichment_config_ref)
-                symbols = load_yaml(data_config_ref)["symbols"][
+                symbols = data_config_with_resolved_symbols(pipeline_config)["symbols"][
                     : enrichment_config["candidate_selection"]["top_n_by_score"]
                 ]
                 details = {
@@ -316,15 +337,16 @@ def run_pipeline(
                     "orderbook": ingest_orderbook(enrichment_config_ref, symbols=symbols),
                 }
             elif stage == "run_phase1_prediction":
-                data_config = load_yaml(data_config_ref)
+                data_config = data_config_with_resolved_symbols(pipeline_config)
+                phase1_config = load_yaml(phase1_config_ref)
                 details = run_phase1_prediction(
-                    load_yaml(phase1_config_ref),
-                    data_config["symbols"],
+                    phase1_config,
+                    _phase1_symbols(phase1_config, data_config["symbols"]),
                     split,
                 )
             elif stage == "run_experiment":
                 details = run_experiment(
-                    experiment_config_ref,
+                    _pipeline_experiment_config(experiment_config_ref, splits_config_ref),
                     split,
                     final_flag=final_flag,
                 )

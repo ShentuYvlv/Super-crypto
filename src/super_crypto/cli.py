@@ -8,6 +8,7 @@ import yaml
 
 from super_crypto.autoresearch.agent_loop import run_loop
 from super_crypto.common.config import load_yaml
+from super_crypto.common.config_symbols import data_config_with_resolved_symbols
 from super_crypto.common.logging import configure_logging
 from super_crypto.common.paths import DATA_ROOT, resolve_project_path
 from super_crypto.common.time import utc_now
@@ -21,8 +22,10 @@ from super_crypto.data.ingest_open_interest import run as ingest_open_interest
 from super_crypto.data.ingest_orderbook import run as ingest_orderbook
 from super_crypto.experiments.experiment_store import ExperimentStore
 from super_crypto.experiments.pipeline_runner import run_pipeline
-from super_crypto.experiments.run_experiment import build_expanded_experiment_config
-from super_crypto.experiments.run_experiment import latest_frozen_config_path
+from super_crypto.experiments.run_experiment import (
+    build_expanded_experiment_config,
+    latest_frozen_config_path,
+)
 from super_crypto.experiments.run_experiment import run as run_experiment
 from super_crypto.realtime.scanner import run as run_scanner
 from super_crypto.reports.report_server import serve
@@ -100,7 +103,7 @@ def main_callback(verbose: bool = typer.Option(False, "--verbose")) -> None:
 
 @app.command()
 def ingest(config: str = typer.Option(..., "--config")) -> None:
-    data_config = _config_section(config, "data")
+    data_config = data_config_with_resolved_symbols(load_yaml(config))
     typer.echo(
         {
             "market_snapshots": ingest_market_snapshots(data_config),
@@ -122,7 +125,9 @@ def detect_cycles_command(
     symbols: Annotated[list[str] | None, typer.Option()] = None,
 ) -> None:
     payload = load_yaml(config)
-    data_config = payload.get("data") or load_yaml("configs/pipeline_v4a.yaml")["data"]
+    data_config = data_config_with_resolved_symbols(
+        payload if payload.get("data") else load_yaml("configs/pipeline_v4a.yaml")
+    )
     typer.echo(label_cycles(payload.get("cycle", payload), symbols or data_config["symbols"]))
 
 

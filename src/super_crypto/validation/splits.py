@@ -6,6 +6,7 @@ from typing import Any
 import pandas as pd
 
 from super_crypto.common.config import canonical_json, hash_payload, load_yaml
+from super_crypto.common.config_validation import validate_split_config
 from super_crypto.common.paths import DATA_ROOT, resolve_project_path
 from super_crypto.common.time import parse_timestamp
 
@@ -26,11 +27,14 @@ def _load_split_config(config: str | Path | dict[str, Any]) -> dict[str, Any]:
 def _symbols_for_split(config: dict[str, Any], split: str) -> list[str]:
     if "symbols" in config[split]:
         return list(config[split]["symbols"])
+    if "symbols" in config:
+        return list(config["symbols"])
     return read_symbol_split_file(config["symbol_split_files"][split])
 
 
 def build_split_manifest(config_path: str | Path | dict[str, Any]) -> dict:
     config = _load_split_config(config_path)
+    validate_split_config(config)
     manifest = {
         split: {
             "start": config[split]["start"],
@@ -53,6 +57,7 @@ def filter_frame_for_split(
     split: str,
 ) -> pd.DataFrame:
     config = _load_split_config(config_path)
+    validate_split_config(config)
     if split == "train_validation":
         train = filter_frame_for_split(frame, config_path, "train")
         validation = filter_frame_for_split(frame, config_path, "validation")
@@ -84,7 +89,9 @@ def holdout_guard(
 ) -> None:
     if split != "holdout":
         return
-    config = _load_split_config(config_path)["holdout_policy"]
+    loaded = _load_split_config(config_path)
+    validate_split_config(loaded)
+    config = loaded["holdout_policy"]
     if config["require_final_flag"] and not final_flag:
         raise ValueError("Holdout requires --final.")
     if prior_runs >= int(config["max_manual_runs"]):

@@ -105,6 +105,35 @@ def test_inline_split_symbols_filter_frame():
     assert filtered["close"].tolist() == [1]
 
 
+def test_split_symbols_are_inherited_by_each_split():
+    frame = pd.DataFrame(
+        [
+            {"symbol": "BTCUSDT", "open_time": "2026-01-02T00:00:00Z", "close": 1},
+            {"symbol": "ETHUSDT", "open_time": "2026-01-02T00:00:00Z", "close": 2},
+        ]
+    )
+    split_config = {
+        "symbols": ["ETHUSDT"],
+        "train": {
+            "start": "2026-01-01T00:00:00Z",
+            "end": "2026-01-31T23:59:59Z",
+        },
+        "validation": {
+            "start": "2026-02-01T00:00:00Z",
+            "end": "2026-02-28T23:59:59Z",
+        },
+        "holdout": {
+            "start": "2026-03-01T00:00:00Z",
+            "end": "2026-03-31T23:59:59Z",
+        },
+        "purge_bars": 2,
+    }
+
+    filtered = filter_frame_for_split(frame, split_config, "train")
+
+    assert filtered["symbol"].tolist() == ["ETHUSDT"]
+
+
 def _split_config() -> dict:
     return {
         "train": {
