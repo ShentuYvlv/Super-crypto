@@ -42,27 +42,43 @@ const columns = [
   }),
   columnHelper.accessor((row) => row.metrics.net_return, {
     id: "net_return",
-    header: "净收益",
-    cell: ({ getValue }) => `${(getValue() * 100).toFixed(1)}%`
+    header: "主指标",
+    cell: ({ getValue, row }) =>
+      row.original.strategy === "PHASE1"
+        ? `F1 ${((row.original.metrics.f1 ?? 0) * 100).toFixed(1)}%`
+        : `${((getValue() ?? 0) * 100).toFixed(1)}%`
   }),
   columnHelper.accessor((row) => row.metrics.trade_count, {
     id: "trade_count",
-    header: "交易数"
+    header: "样本/交易",
+    cell: ({ getValue, row }) =>
+      row.original.strategy === "PHASE1"
+        ? String(row.original.metrics.sample_count ?? 0)
+        : String(getValue() ?? 0)
   }),
   columnHelper.accessor((row) => row.metrics.sharpe, {
     id: "sharpe",
-    header: "夏普",
-    cell: ({ getValue }) => getValue().toFixed(2)
+    header: "夏普/AUC",
+    cell: ({ getValue, row }) =>
+      row.original.strategy === "PHASE1"
+        ? (row.original.metrics.auc ?? 0).toFixed(2)
+        : (getValue() ?? 0).toFixed(2)
   }),
   columnHelper.accessor((row) => row.metrics.max_drawdown, {
     id: "max_drawdown",
     header: "最大回撤",
-    cell: ({ getValue }) => `${(getValue() * 100).toFixed(1)}%`
+    cell: ({ getValue, row }) =>
+      row.original.strategy === "PHASE1"
+        ? "-"
+        : `${((getValue() ?? 0) * 100).toFixed(1)}%`
   }),
   columnHelper.accessor((row) => row.metrics.win_rate, {
     id: "win_rate",
-    header: "胜率",
-    cell: ({ getValue }) => `${(getValue() * 100).toFixed(0)}%`
+    header: "胜率/召回",
+    cell: ({ getValue, row }) =>
+      row.original.strategy === "PHASE1"
+        ? `${((row.original.metrics.recall ?? 0) * 100).toFixed(0)}%`
+        : `${((getValue() ?? 0) * 100).toFixed(0)}%`
   }),
   columnHelper.accessor("config_hash", {
     header: "配置哈希",
@@ -82,7 +98,13 @@ const columns = [
   }),
   columnHelper.accessor("failure_reason", {
     header: "结论",
-    cell: ({ getValue, row }) => displayText(getValue() ?? (row.original.metrics.trade_count < 20 ? "low_trade_count" : "-"))
+    cell: ({ getValue, row }) =>
+      displayText(
+        getValue() ??
+          ((row.original.metrics.trade_count ?? 0) < 20 && row.original.strategy !== "PHASE1"
+            ? "low_trade_count"
+            : "-")
+      )
   }),
   columnHelper.accessor("parameter_selection_source", {
     header: "选参",

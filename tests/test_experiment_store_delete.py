@@ -45,6 +45,29 @@ def test_delete_experiment_bundle_removes_trades_and_orphan_signals(tmp_path):
     assert store.get_payload("signals", "signal_id", "signal-shared") is not None
 
 
+def test_delete_experiment_bundle_removes_experiment_signals_without_trades(tmp_path):
+    store = ExperimentStore(tmp_path / "experiments.db")
+    store.upsert(
+        "experiments",
+        "experiment_id",
+        {"experiment_id": "exp-a", "created_at": "2026-01-01T00:00:00Z"},
+    )
+    store.bulk_upsert(
+        "signals",
+        "signal_id",
+        [
+            {"signal_id": "signal-a", "experiment_id": "exp-a"},
+            {"signal_id": "signal-live"},
+        ],
+    )
+
+    deleted = store.delete_experiment_bundle(["exp-a"])
+
+    assert deleted == {"experiments": 1, "trades": 0, "signals": 1}
+    assert store.get_payload("signals", "signal_id", "signal-a") is None
+    assert store.get_payload("signals", "signal_id", "signal-live") is not None
+
+
 def test_clear_autoresearch_runs_removes_only_research_metadata(tmp_path):
     store = ExperimentStore(tmp_path / "experiments.db")
     store.upsert(

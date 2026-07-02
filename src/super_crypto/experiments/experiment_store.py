@@ -108,12 +108,19 @@ class ExperimentStore:
         deleted_signal_ids = {
             trade["signal_id"] for trade in deleted_trades if trade.get("signal_id")
         }
+        experiment_signal_ids = {
+            signal["signal_id"]
+            for signal in self.list_payloads("signals")
+            if signal.get("experiment_id") in unique_ids
+        }
         remaining_signal_ids = {
             trade["signal_id"]
             for trade in trades
             if trade.get("experiment_id") not in unique_ids and trade.get("signal_id")
         }
-        orphan_signal_ids = sorted(deleted_signal_ids - remaining_signal_ids)
+        orphan_signal_ids = sorted(
+            (deleted_signal_ids | experiment_signal_ids) - remaining_signal_ids
+        )
         return {
             "experiments": self.delete_payloads(
                 "experiments",

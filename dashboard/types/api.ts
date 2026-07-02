@@ -11,7 +11,7 @@ export type CurvePoint = {
 export type Signal = {
   signal_id: string;
   symbol: string;
-  strategy: "V3" | "V4A" | "V4B";
+  strategy: "V3" | "V4A" | "V4B" | "PHASE1";
   side: "SHORT";
   signal_time: string;
   decision_time: string;
@@ -34,7 +34,7 @@ export type Trade = {
   signal_id: string;
   experiment_id?: string | null;
   symbol: string;
-  strategy: "V3" | "V4A" | "V4B";
+  strategy: "V3" | "V4A" | "V4B" | "PHASE1";
   split: string;
   source: "backtest" | "paper";
   side: "SHORT";
@@ -69,12 +69,18 @@ export type ExperimentMetrics = {
   slippage_cost: number;
   funding_cost: number;
   top5_removed_net_return: number;
+  f1?: number;
+  precision?: number;
+  recall?: number;
+  auc?: number;
+  label_count?: number;
+  sample_count?: number;
 };
 
 export type Experiment = {
   experiment_id: string;
   name: string;
-  strategy: "V3" | "V4A" | "V4B";
+  strategy: "V3" | "V4A" | "V4B" | "PHASE1";
   engine: string;
   split: string;
   status: string;

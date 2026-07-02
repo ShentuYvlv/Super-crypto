@@ -580,6 +580,7 @@ def run(config_path: str | dict[str, Any], split: str, final_flag: bool = False)
             "strategy": strategy_name,
         }
     )[:12]
+    signals_payloads = [{**signal, "experiment_id": experiment_id} for signal in signals_payloads]
     trades_payloads = [{**trade, "experiment_id": experiment_id} for trade in trades_payloads]
     report_dir = ensure_directory(REPORT_ROOT / experiment_id)
     trade_log_path = write_csv(trades_frame, report_dir / "trades.csv")

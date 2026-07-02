@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from super_crypto.common.time import parse_timestamp
 from super_crypto.report_api.deps import envelope, experiment_store
 from super_crypto.report_api.loaders import (
     frame_to_records,
@@ -13,6 +14,21 @@ from super_crypto.report_api.loaders import (
 )
 
 router = APIRouter(prefix="/api/signals", tags=["signals"])
+
+
+def _signal_kline_window(klines, signal_time: str, *, before: int = 120, after: int = 80):
+    if klines.empty or "open_time" not in klines:
+        return klines.tail(before + after)
+    frame = klines.copy()
+    frame["open_time"] = frame["open_time"].apply(parse_timestamp)
+    signal_timestamp = parse_timestamp(signal_time)
+    nearest_index = (frame["open_time"] - signal_timestamp).abs().idxmin()
+    position = frame.index.get_loc(nearest_index)
+    if isinstance(position, slice):
+        position = position.start
+    start = max(int(position) - before, 0)
+    end = min(int(position) + after + 1, len(frame))
+    return frame.iloc[start:end]
 
 
 @router.get("")
@@ -40,7 +56,7 @@ def get_signal(signal_id: str):
         for trade in experiment_store().list_payloads("trades")
         if trade.get("signal_id") == signal_id
     ]
-    klines = load_symbol_ohlcv(symbol).tail(200)
+    klines = _signal_kline_window(load_symbol_ohlcv(symbol), signal["signal_time"])
     funding = load_symbol_funding(symbol)
     open_interest = load_symbol_open_interest(symbol)
     orderbook = load_symbol_orderbook(symbol)

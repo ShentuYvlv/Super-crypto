@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from super_crypto.common.paths import DATA_ROOT
+from super_crypto.experiments import pipeline_runner
 from super_crypto.experiments.pipeline_runner import (
     _enrichment_output_paths,
     _ingest_output_paths,
@@ -38,3 +39,86 @@ def test_enrichment_outputs_cover_orderbook_and_coinglass_endpoints():
         DATA_ROOT / "processed" / "external_enrichment" / "tickers_BTCUSDT.parquet",
         DATA_ROOT / "processed" / "external_enrichment" / "coin_info_BTCUSDT.parquet",
     ]
+
+
+def test_pipeline_can_run_phase1_stage_without_new_cli(tmp_path, monkeypatch):
+    config_path = tmp_path / "pipeline.yaml"
+    config_path.write_text(
+        """
+name: test_pipeline
+data:
+  symbols: [BTCUSDT]
+  timeframes: [1h]
+splits:
+  train:
+    start: "2026-01-01T00:00:00Z"
+    end: "2026-01-10T00:00:00Z"
+    symbols: [BTCUSDT]
+  validation:
+    start: "2026-01-11T00:00:00Z"
+    end: "2026-01-20T00:00:00Z"
+    symbols: [BTCUSDT]
+  holdout:
+    start: "2026-01-21T00:00:00Z"
+    end: "2026-01-30T00:00:00Z"
+    symbols: [BTCUSDT]
+  holdout_policy:
+    require_final_flag: true
+    max_manual_runs: 1
+  purge_bars: 2
+phase1_prediction:
+  label_source: data/labels/phase1_events.csv
+  timeframe: 1h
+  lead_time_hours: 4
+  candidate_thresholds:
+    return_4h_min: 0.15
+    return_24h_min: 0.30
+    volume_zscore_min: 3.0
+    range_pct_min: 0.20
+stages:
+  run_phase1_prediction:
+    enabled: true
+""",
+        encoding="utf-8",
+    )
+
+    class FakePipelineStore:
+        runs: list[dict] = []
+        stages: list[dict] = []
+
+        def list_runs(self):
+            return self.runs
+
+        def list_stages(self, _run_id):
+            return self.stages
+
+        def upsert_run(self, payload):
+            self.runs.append(payload)
+
+        def upsert_stage(self, payload):
+            self.stages.append(payload)
+
+    class FakeExperimentStore:
+        def holdout_run_count(self):
+            return 0
+
+    monkeypatch.setattr(pipeline_runner, "PipelineStore", FakePipelineStore)
+    monkeypatch.setattr(pipeline_runner, "ExperimentStore", FakeExperimentStore)
+    monkeypatch.setattr(pipeline_runner, "holdout_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        pipeline_runner,
+        "run_phase1_prediction",
+        lambda _config, symbols, split: {
+            "symbols": symbols,
+            "split": split,
+            "candidate_count": 1,
+        },
+    )
+
+    result = pipeline_runner.run_pipeline(
+        str(config_path),
+        "train_validation",
+        only_stage="run_phase1_prediction",
+    )
+
+    assert result["stages"]["run_phase1_prediction"]["candidate_count"] == 1

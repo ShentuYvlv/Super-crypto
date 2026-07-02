@@ -20,6 +20,7 @@ from super_crypto.data.ingest_market_snapshots import run as ingest_market_snaps
 from super_crypto.data.ingest_open_interest import run as ingest_open_interest
 from super_crypto.data.ingest_orderbook import run as ingest_orderbook
 from super_crypto.experiments.experiment_store import ExperimentStore
+from super_crypto.experiments.phase1_prediction import run as run_phase1_prediction
 from super_crypto.experiments.pipeline_store import PipelineStore
 from super_crypto.experiments.run_experiment import run as run_experiment
 from super_crypto.universe.manipulation_score import score_symbols, write_scores
@@ -62,6 +63,7 @@ PIPELINE_STAGES = [
     "build_event_set",
     "score_symbols",
     "enrich",
+    "run_phase1_prediction",
     "run_experiment",
     "report",
 ]
@@ -166,7 +168,9 @@ def _stage_skip_reason(pipeline_config: dict[str, Any], stage: str, split: str) 
     if stage == "enrich" and config.get("skip_if_fresh"):
         freshness_seconds = int(float(config.get("freshness_minutes", 0)) * 60)
         try:
-            enrichment_config = load_yaml(_config_ref(pipeline_config, "enrichment", "enrichment_config", ""))
+            enrichment_config = load_yaml(
+                _config_ref(pipeline_config, "enrichment", "enrichment_config", "")
+            )
         except Exception:
             enrichment_config = {}
         endpoints = enrichment_config.get("coinglass", {}).get("endpoints", [])
@@ -195,6 +199,11 @@ def run_pipeline(
     seed_events_config_ref = _config_ref(pipeline_config, "seed_events", "seed_events_config")
     scores_config_ref = _config_ref(pipeline_config, "scores", "scores_config")
     enrichment_config_ref = _config_ref(pipeline_config, "enrichment", "enrichment_config")
+    phase1_config_ref = _config_ref(
+        pipeline_config,
+        "phase1_prediction",
+        "phase1_prediction_config",
+    )
     experiment_config_ref = _config_ref(pipeline_config, "experiment", "experiment_config")
     run_id = hash_file(config_path)[:12] + "-" + split
     store = PipelineStore()
@@ -306,6 +315,13 @@ def run_pipeline(
                     "coinglass": ingest_coinglass(enrichment_config_ref, symbols=symbols),
                     "orderbook": ingest_orderbook(enrichment_config_ref, symbols=symbols),
                 }
+            elif stage == "run_phase1_prediction":
+                data_config = load_yaml(data_config_ref)
+                details = run_phase1_prediction(
+                    load_yaml(phase1_config_ref),
+                    data_config["symbols"],
+                    split,
+                )
             elif stage == "run_experiment":
                 details = run_experiment(
                     experiment_config_ref,

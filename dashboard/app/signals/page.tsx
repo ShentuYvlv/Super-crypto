@@ -93,7 +93,16 @@ function SignalsContent() {
               {detail.data.kline_context.length === 0 ? (
                 <EmptyState title="暂无 K 线上下文" description="该信号缺少本地 K 线上下文。" />
               ) : (
-                <KlinePanel rows={detail.data.kline_context as Array<{ open_time?: string; open: number; high: number; low: number; close: number }>} />
+                <KlinePanel
+                  rows={detail.data.kline_context as Array<{ open_time?: string; open: number; high: number; low: number; close: number }>}
+                  signalMarker={{
+                    signal_id: detail.data.signal_id,
+                    signal_time: detail.data.signal_time,
+                    side: detail.data.side,
+                    confidence: detail.data.confidence,
+                    reason: detail.data.reason
+                  }}
+                />
               )}
             </Card>
             <Card className="p-5">

@@ -39,7 +39,7 @@ def build_split_manifest(config_path: str | Path | dict[str, Any]) -> dict:
         }
         for split in ("train", "validation", "holdout")
     }
-    manifest["purge_bars"] = config["purge_bars"]
+    manifest["purge_bars"] = int(config.get("purge_bars", 0))
     manifest["split_hash"] = hash_payload(manifest)
     output = DATA_ROOT / "processed" / "split_manifest.json"
     output.parent.mkdir(parents=True, exist_ok=True)

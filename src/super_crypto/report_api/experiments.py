@@ -129,7 +129,8 @@ def get_experiment(experiment_id: str):
     signals = [
         signal
         for signal in list_signals()
-        if signal["signal_id"] in {trade["signal_id"] for trade in trades}
+        if signal.get("experiment_id") == experiment_id
+        or signal["signal_id"] in {trade["signal_id"] for trade in trades}
     ]
     trades_frame = pd.DataFrame(trades)
     curve = equity_curve(trades_frame)

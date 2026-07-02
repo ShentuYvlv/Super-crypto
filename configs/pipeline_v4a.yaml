@@ -136,6 +136,28 @@ enrichment:
       spot_flow: 30
       coin_info: 360
 
+phase1_prediction:
+  enabled: true
+  label_source: data/labels/phase1_events.csv
+  timeframe: 1h
+  lead_time_hours: 4
+  minimum_labels_to_run: 10
+  allowed_label_quality: [A, B]
+  negative_sample_ratio: 5
+  negative_gap_hours: 48
+  candidate_cooldown_hours: 24
+  candidate_thresholds:
+    return_4h_min: 0.15
+    return_24h_min: 0.30
+    volume_zscore_min: 3.0
+    range_pct_min: 0.20
+  experiments:
+    - fr_baseline
+    - fr_oi
+    - fr_oi_liquidation
+    - fr_oi_liquidation_taker
+    - all_available_features
+
 experiment:
   name: experiment_v4a
   engine: event_driven
@@ -225,6 +247,8 @@ stages:
     candidate_only: true
     skip_if_fresh: true
     freshness_minutes: 15
+  run_phase1_prediction:
+    enabled: false
   run_experiment:
     enabled: true
     engine: event_driven

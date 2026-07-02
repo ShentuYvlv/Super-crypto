@@ -35,6 +35,14 @@ export type TradeChartMarker = {
   notional_usdt?: number;
 };
 
+export type SignalChartMarker = {
+  signal_id: string;
+  signal_time: string;
+  side: "SHORT";
+  confidence: number;
+  reason: string[];
+};
+
 function toChartTime(value: string | undefined): UTCTimestamp {
   return (value ? Math.floor(new Date(value).getTime() / 1000) : 0) as UTCTimestamp;
 }
@@ -85,16 +93,34 @@ function markerTooltip(marker: TradeChartMarker): string {
   `;
 }
 
+function signalTooltip(marker: SignalChartMarker): string {
+  return `
+    <div class="rounded-lg border border-border bg-[#0b0e11]/95 p-3 shadow-panel">
+      <div class="mb-2 flex items-center justify-between gap-4">
+        <span class="text-xs text-muted">策略信号</span>
+        <span class="font-mono text-xs text-accent">${marker.signal_id.slice(0, 10)}</span>
+      </div>
+      <div class="grid gap-1.5 text-xs text-text">
+        <div>方向：<span class="font-mono">${marker.side === "SHORT" ? "做空" : marker.side}</span></div>
+        <div>置信度：<span class="font-mono">${(marker.confidence * 100).toFixed(0)}%</span></div>
+        <div>原因：<span class="font-mono">${marker.reason.join(", ")}</span></div>
+      </div>
+    </div>
+  `;
+}
+
 export function KlinePanel({
   rows,
   tradeMarker,
   tradeMarkers,
+  signalMarker,
   activeTradeId,
   height = 320
 }: {
   rows: CandleRow[];
   tradeMarker?: TradeChartMarker;
   tradeMarkers?: TradeChartMarker[];
+  signalMarker?: SignalChartMarker;
   activeTradeId?: string;
   height?: number;
 }) {
@@ -143,8 +169,22 @@ export function KlinePanel({
 
     const normalizedMarkers = tradeMarkers ?? (tradeMarker ? [tradeMarker] : []);
     const markerLookup: Array<{ time: UTCTimestamp; marker: TradeChartMarker }> = [];
+    const signalLookup: Array<{ time: UTCTimestamp; marker: SignalChartMarker }> = [];
+    const markers: SeriesMarker<UTCTimestamp>[] = [];
+    if (signalMarker) {
+      const signalTime = nearestCandleTime(toChartTime(signalMarker.signal_time), candleTimes);
+      signalLookup.push({ time: signalTime, marker: signalMarker });
+      markers.push({
+        time: signalTime,
+        position: "aboveBar",
+        shape: "circle",
+        color: "#fcd535",
+        text: "信号",
+        size: 1.5
+      });
+    }
     if (normalizedMarkers.length > 0) {
-      const markers: SeriesMarker<UTCTimestamp>[] = normalizedMarkers.flatMap((marker) => {
+      const tradeSeriesMarkers: SeriesMarker<UTCTimestamp>[] = normalizedMarkers.flatMap((marker) => {
         const entryTime = nearestCandleTime(toChartTime(marker.entry_time), candleTimes);
         const exitTime = nearestCandleTime(toChartTime(marker.exit_time), candleTimes);
         const active = marker.trade_id === activeTradeId;
@@ -168,15 +208,28 @@ export function KlinePanel({
           }
         ];
       });
+      markers.push(...tradeSeriesMarkers);
+    }
+    if (markers.length > 0) {
       series.setMarkers(markers);
     }
 
     chart.subscribeCrosshairMove((param) => {
-      if (normalizedMarkers.length === 0 || !param.point || param.time === undefined) {
+      if (markers.length === 0 || !param.point || param.time === undefined) {
         tooltip.style.display = "none";
         return;
       }
       const hoveredTime = Number(param.time);
+      const nearestSignal = signalLookup.find((item) => Math.abs(Number(item.time) - hoveredTime) <= 1800);
+      if (nearestSignal) {
+        tooltip.innerHTML = signalTooltip(nearestSignal.marker);
+        tooltip.style.display = "block";
+        const left = Math.min(param.point.x + 16, ref.current!.clientWidth - 280);
+        const top = Math.max(param.point.y - 96, 12);
+        tooltip.style.left = `${Math.max(left, 12)}px`;
+        tooltip.style.top = `${top}px`;
+        return;
+      }
       const nearestMarker = markerLookup.find((item) => Math.abs(Number(item.time) - hoveredTime) <= 1800);
       const nearTradeMarker = nearestMarker !== undefined;
       if (!nearTradeMarker) {
@@ -195,7 +248,7 @@ export function KlinePanel({
       tooltip.remove();
       chart.remove();
     };
-  }, [rows, tradeMarker, tradeMarkers, activeTradeId, height]);
+  }, [rows, tradeMarker, tradeMarkers, signalMarker, activeTradeId, height]);
 
   return (
     <div className="relative w-full" style={{ height }}>
