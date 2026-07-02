@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -125,6 +126,45 @@ FEATURE_SETS = [
         model="lightgbm",
     ),
 ]
+
+STATUS_ZH = {
+    "completed": "已完成",
+    "completed_no_holdout": "已完成（无留出集）",
+    "needs_labels": "标签不足",
+    "needs_positive_samples": "缺少正样本",
+    "insufficient_data": "数据不足",
+    "insufficient_train_data": "训练数据不足",
+    "lightgbm_not_installed": "LightGBM 未安装",
+    "covered": "已覆盖",
+    "window_not_covered": "窗口未被本地K线覆盖",
+    "missing_positive_sample": "缺少前置正样本",
+}
+
+REASON_ZH = {
+    "not_enough_event_labels": "事件标签数量不足",
+    "no_positive_samples": "没有可用正样本",
+}
+
+SPLIT_ZH = {
+    "train": "训练集",
+    "validation": "验证集",
+    "holdout": "留出集",
+    "train_validation": "训练+验证",
+}
+
+MODEL_ZH = {
+    "threshold": "阈值规则",
+    "lightgbm": "LightGBM",
+}
+
+EXPERIMENT_ZH = {
+    "fr_baseline": "资金费率基线",
+    "fr_oi": "资金费率 + OI",
+    "fr_oi_liquidation": "资金费率 + OI + 爆仓",
+    "fr_oi_liquidation_taker": "资金费率 + OI + 爆仓 + 主动买卖",
+    "all_available_features": "全部可用特征",
+    "lightgbm_all_features": "LightGBM 全特征",
+}
 
 
 def _label_template_path(config: dict[str, Any]) -> Path:
@@ -544,7 +584,7 @@ def _auto_detect_event_in_window(
     frame: pd.DataFrame,
     window: dict[str, Any],
     config: dict[str, Any],
-) -> dict[str, pd.Timestamp] | None:
+) -> dict[str, Any] | None:
     start = _window_timestamp(window, "start")
     end = _window_timestamp(window, "end")
     if end <= start:
@@ -556,6 +596,7 @@ def _auto_detect_event_in_window(
     detection = config.get("auto_event_detection", {})
     pump_return_min = float(detection.get("pump_return_min", 0.15))
     threshold_candidates = scoped[scoped["pump_return_lookback"] >= pump_return_min]
+    detection_rule = f"pump_return_lookback >= {pump_return_min:g}"
     if threshold_candidates.empty:
         thresholds = config.get("candidate_thresholds", {})
         threshold_candidates = scoped[
@@ -567,8 +608,12 @@ def _auto_detect_event_in_window(
             )
             | (scoped["range_pct"] >= float(thresholds.get("range_pct_min", 999999.0)))
         ]
+        detection_rule = (
+            "fallback: return_4h / return_24h / volume_zscore_24h / range_pct thresholds"
+        )
     if threshold_candidates.empty:
         event_start = scoped.iloc[0]["open_time"]
+        detection_rule = "fallback: first bar in configured window"
     else:
         event_start = threshold_candidates.iloc[0]["open_time"]
 
@@ -584,6 +629,7 @@ def _auto_detect_event_in_window(
         "event_start": pd.Timestamp(event_start),
         "peak_time": pd.Timestamp(peak_row["open_time"]),
         "dump_end": pd.Timestamp(dump_row["open_time"]),
+        "detection_rule": detection_rule,
     }
 
 
@@ -646,6 +692,9 @@ def _window_diagnostics(config: dict[str, Any], symbols: list[str]) -> list[dict
                     "data_end": None,
                     "window_rows": 0,
                     "detected_event_start": None,
+                    "peak_time": None,
+                    "dump_end": None,
+                    "detection_rule": None,
                     "positive_sample_time": None,
                     "has_positive_sample": False,
                     "status": "missing_ohlcv",
@@ -660,6 +709,9 @@ def _window_diagnostics(config: dict[str, Any], symbols: list[str]) -> list[dict
         reason = ""
         status = "covered"
         detected_event_start = None
+        peak_time = None
+        dump_end = None
+        detection_rule = None
         positive_sample_time = None
         has_positive_sample = False
         if window_rows == 0:
@@ -674,6 +726,9 @@ def _window_diagnostics(config: dict[str, Any], symbols: list[str]) -> list[dict
         else:
             sample_time = detected["event_start"] - lead_time
             detected_event_start = to_iso(detected["event_start"].to_pydatetime())
+            peak_time = to_iso(detected["peak_time"].to_pydatetime())
+            dump_end = to_iso(detected["dump_end"].to_pydatetime())
+            detection_rule = str(detected.get("detection_rule") or "")
             positive_sample_time = to_iso(sample_time.to_pydatetime())
             has_positive_sample = _sample_at_or_before(frame, sample_time) is not None
             if not has_positive_sample:
@@ -691,6 +746,9 @@ def _window_diagnostics(config: dict[str, Any], symbols: list[str]) -> list[dict
                 "data_end": to_iso(data_end.to_pydatetime()),
                 "window_rows": window_rows,
                 "detected_event_start": detected_event_start,
+                "peak_time": peak_time,
+                "dump_end": dump_end,
+                "detection_rule": detection_rule,
                 "positive_sample_time": positive_sample_time,
                 "has_positive_sample": has_positive_sample,
                 "status": status,
@@ -1051,30 +1109,104 @@ def _evaluate_feature_set(dataset: pd.DataFrame, feature_set: Phase1FeatureSet) 
     return _evaluate_threshold_feature_set(dataset, feature_set, available)
 
 
+def _zh_status(value: Any) -> str:
+    text = str(value or "")
+    return STATUS_ZH.get(text, text or "-")
+
+
+def _zh_reason(value: Any) -> str:
+    text = str(value or "")
+    return REASON_ZH.get(text, text)
+
+
+def _zh_split(value: Any) -> str:
+    text = str(value or "")
+    return SPLIT_ZH.get(text, text or "-")
+
+
+def _zh_model(value: Any) -> str:
+    text = str(value or "")
+    return MODEL_ZH.get(text, text or "-")
+
+
+def _zh_experiment(value: Any) -> str:
+    text = str(value or "")
+    return EXPERIMENT_ZH.get(text, text or "-")
+
+
+def _phase1_summary(payload: dict[str, Any]) -> list[str]:
+    results = payload.get("phase1_results", [])
+    holdout_positive_count = int(payload.get("holdout_positive_count", 0) or 0)
+    summary = []
+    if holdout_positive_count < 5:
+        summary.append(
+            f"留出集正样本只有 {holdout_positive_count} 个，结论只能当阶段性观察，不能当最终定论。"
+        )
+    if not results:
+        summary.append("本次没有可评估的实验结果。")
+        return summary
+    best_train = max(results, key=lambda item: float(item.get("train_f1", 0.0) or 0.0))
+    best_holdout = max(results, key=lambda item: float(item.get("holdout_f1", 0.0) or 0.0))
+    summary.append(
+        "训练集最优是 {name}，训练 F1={train_f1:.3f}，留出 F1={holdout_f1:.3f}。".format(
+            name=_zh_experiment(best_train.get("experiment")),
+            train_f1=float(best_train.get("train_f1", 0.0) or 0.0),
+            holdout_f1=float(best_train.get("holdout_f1", 0.0) or 0.0),
+        )
+    )
+    summary.append(
+        (
+            "留出集最优是 {name}，留出 F1={holdout_f1:.3f}，"
+            "精确率={precision:.3f}，召回率={recall:.3f}。"
+        ).format(
+            name=_zh_experiment(best_holdout.get("experiment")),
+            holdout_f1=float(best_holdout.get("holdout_f1", 0.0) or 0.0),
+            precision=float(best_holdout.get("holdout_precision", 0.0) or 0.0),
+            recall=float(best_holdout.get("holdout_recall", 0.0) or 0.0),
+        )
+    )
+    overfit_results = [
+        item
+        for item in results
+        if float(item.get("train_f1", 0.0) or 0.0) >= 0.7
+        and float(item.get("holdout_f1", 0.0) or 0.0) < 0.2
+    ]
+    if overfit_results:
+        names = "、".join(_zh_experiment(item.get("experiment")) for item in overfit_results)
+        summary.append(f"{names} 训练集表现高但留出集失效，优先按过拟合处理。")
+    if float(best_holdout.get("holdout_precision", 0.0) or 0.0) < 0.3:
+        summary.append("留出集精确率偏低，当前信号会产生大量误报，不适合直接用于实盘前兆预测。")
+    return summary
+
+
 def _write_report(report_dir: Path, payload: dict[str, Any]) -> tuple[str, str]:
     markdown_path = ensure_parent(report_dir / "report.md")
     html_path = ensure_parent(report_dir / "report.html")
     lines = [
-        f"# Phase1 Prediction {payload['experiment_id']}",
+        f"# Phase1 预测实验 {payload['experiment_id']}",
         "",
-        f"- Status: {payload['status']}",
-        f"- Label count: {payload['label_count']}",
-        f"- Sample count: {payload['sample_count']}",
-        f"- Candidate path: {payload['candidate_path']}",
-        f"- Label template: {payload['label_template_path']}",
-        f"- Window diagnostics: {payload['window_diagnostics_path']}",
-        f"- Positive samples: {payload['positive_sample_count']}",
-        f"- Negative samples: {payload['negative_sample_count']}",
-        f"- Train samples: {payload['train_sample_count']}",
-        f"- Train positives: {payload['train_positive_count']}",
-        f"- Holdout samples: {payload['holdout_sample_count']}",
-        f"- Holdout positives: {payload['holdout_positive_count']}",
+        f"- 状态: {_zh_status(payload['status'])}",
+        f"- 标签数量: {payload['label_count']}",
+        f"- 样本数量: {payload['sample_count']}",
+        f"- 候选样本文件: {payload['candidate_path']}",
+        f"- 标签文件: {payload['label_template_path']}",
+        f"- 窗口诊断文件: {payload['window_diagnostics_path']}",
+        f"- 正样本数量: {payload['positive_sample_count']}",
+        f"- 负样本数量: {payload['negative_sample_count']}",
+        f"- 训练集样本: {payload['train_sample_count']}",
+        f"- 训练集正样本: {payload['train_positive_count']}",
+        f"- 留出集样本: {payload['holdout_sample_count']}",
+        f"- 留出集正样本: {payload['holdout_positive_count']}",
         "",
-        "## Experiments",
+        "## 结论提示",
+        "",
+        *[f"- {item}" for item in _phase1_summary(payload)],
+        "",
+        "## 实验结果",
         "",
         (
-            "| Experiment | Model | Train F1 | Holdout F1 | Train P/R | "
-            "Holdout P/R | Threshold | Status |"
+            "| 实验 | 模型 | 训练F1 | 留出F1 | 训练精确率/召回率 | "
+            "留出精确率/召回率 | 阈值 | 状态 |"
         ),
         "|---|---|---:|---:|---:|---:|---:|---|",
     ]
@@ -1084,16 +1216,27 @@ def _write_report(report_dir: Path, payload: dict[str, Any]) -> tuple[str, str]:
                 "| {experiment} | {model} | {train_f1:.3f} | {holdout_f1:.3f} | "
                 "{train_precision:.3f}/{train_recall:.3f} | "
                 "{holdout_precision:.3f}/{holdout_recall:.3f} | {threshold:.6f} | {status} |"
-            ).format(**result)
+            ).format(
+                experiment=_zh_experiment(result.get("experiment")),
+                model=_zh_model(result.get("model")),
+                train_f1=float(result.get("train_f1", 0.0) or 0.0),
+                holdout_f1=float(result.get("holdout_f1", 0.0) or 0.0),
+                train_precision=float(result.get("train_precision", 0.0) or 0.0),
+                train_recall=float(result.get("train_recall", 0.0) or 0.0),
+                holdout_precision=float(result.get("holdout_precision", 0.0) or 0.0),
+                holdout_recall=float(result.get("holdout_recall", 0.0) or 0.0),
+                threshold=float(result.get("threshold", 0.0) or 0.0),
+                status=_zh_status(result.get("status")),
+            )
         )
     lines.extend(
         [
             "",
-            "## Window Diagnostics",
+            "## 窗口诊断",
             "",
             (
-                "| Window | Symbol | Split | Rows In Window | Detected Event | "
-                "Positive Sample | Status | Reason |"
+                "| 窗口 | 币种 | 分组 | 窗口内K线数 | 检测到的事件 | "
+                "正样本时间 | 状态 | 原因 |"
             ),
             "|---|---|---|---:|---|---|---|---|",
         ]
@@ -1106,71 +1249,77 @@ def _write_report(report_dir: Path, payload: dict[str, Any]) -> tuple[str, str]:
             ).format(
                 window_id=item.get("window_id", ""),
                 symbol=item.get("symbol", ""),
-                split=item.get("split", ""),
+                split=_zh_split(item.get("split")),
                 window_rows=item.get("window_rows", 0),
                 detected_event_start=item.get("detected_event_start") or "-",
                 positive_sample_time=item.get("positive_sample_time") or "-",
-                status=item.get("status", ""),
-                reason=item.get("reason", ""),
+                status=_zh_status(item.get("status")),
+                reason=_zh_reason(item.get("reason")),
             )
         )
     markdown_path.write_text("\n".join(lines), encoding="utf-8")
     html_rows = "\n".join(
         "<tr>"
-        f"<td>{result['experiment']}</td>"
-        f"<td>{result['model']}</td>"
+        f"<td>{escape(_zh_experiment(result.get('experiment')))}</td>"
+        f"<td>{escape(_zh_model(result.get('model')))}</td>"
         f"<td>{result['train_f1']:.3f}</td>"
         f"<td>{result['holdout_f1']:.3f}</td>"
         f"<td>{result['train_precision']:.3f}/{result['train_recall']:.3f}</td>"
         f"<td>{result['holdout_precision']:.3f}/{result['holdout_recall']:.3f}</td>"
         f"<td>{result['threshold']:.6f}</td>"
-        f"<td>{result['status']}</td>"
+        f"<td>{escape(_zh_status(result.get('status')))}</td>"
         "</tr>"
         for result in payload["phase1_results"]
     )
     diagnostic_rows = "\n".join(
         "<tr>"
-        f"<td>{item.get('window_id', '')}</td>"
-        f"<td>{item.get('symbol', '')}</td>"
-        f"<td>{item.get('split', '')}</td>"
+        f"<td>{escape(str(item.get('window_id', '')))}</td>"
+        f"<td>{escape(str(item.get('symbol', '')))}</td>"
+        f"<td>{escape(_zh_split(item.get('split')))}</td>"
         f"<td>{item.get('window_rows', 0)}</td>"
-        f"<td>{item.get('detected_event_start') or '-'}</td>"
-        f"<td>{item.get('positive_sample_time') or '-'}</td>"
-        f"<td>{item.get('status', '')}</td>"
-        f"<td>{item.get('reason', '')}</td>"
+        f"<td>{escape(str(item.get('detected_event_start') or '-'))}</td>"
+        f"<td>{escape(str(item.get('positive_sample_time') or '-'))}</td>"
+        f"<td>{escape(_zh_status(item.get('status')))}</td>"
+        f"<td>{escape(_zh_reason(item.get('reason')))}</td>"
         "</tr>"
         for item in payload["window_diagnostics"]
     )
+    summary_items = "\n".join(
+        f"<li>{escape(item)}</li>"
+        for item in _phase1_summary(payload)
+    )
     positive_line = (
-        f"<p>Positive samples: {payload['positive_sample_count']} / "
-        f"Negative samples: {payload['negative_sample_count']}</p>"
+        f"<p>正样本: {payload['positive_sample_count']} / "
+        f"负样本: {payload['negative_sample_count']}</p>"
     )
     train_holdout_line = (
-        f"<p>Train positives: {payload['train_positive_count']} / "
-        f"Holdout positives: {payload['holdout_positive_count']}</p>"
+        f"<p>训练集正样本: {payload['train_positive_count']} / "
+        f"留出集正样本: {payload['holdout_positive_count']}</p>"
     )
     html_path.write_text(
         f"""
-        <html><head><meta charset="utf-8"><title>Phase1 Prediction</title></head>
+        <html><head><meta charset="utf-8"><title>Phase1 预测实验</title></head>
         <body>
-          <h1>Phase1 Prediction {payload['experiment_id']}</h1>
-          <p>Status: {payload['status']}</p>
-          <p>Labels: {payload['label_count']} / Samples: {payload['sample_count']}</p>
+          <h1>Phase1 预测实验 {payload['experiment_id']}</h1>
+          <p>状态: {_zh_status(payload['status'])}</p>
+          <p>标签数量: {payload['label_count']} / 样本数量: {payload['sample_count']}</p>
           {positive_line}
           {train_holdout_line}
-          <p>Window diagnostics: {payload['window_diagnostics_path']}</p>
+          <p>窗口诊断文件: {payload['window_diagnostics_path']}</p>
+          <h2>结论提示</h2>
+          <ul>{summary_items}</ul>
           <table border="1" cellspacing="0" cellpadding="6">
             <thead><tr>
-              <th>Experiment</th><th>Model</th><th>Train F1</th><th>Holdout F1</th>
-              <th>Train P/R</th><th>Holdout P/R</th><th>Threshold</th><th>Status</th>
+              <th>实验</th><th>模型</th><th>训练F1</th><th>留出F1</th>
+              <th>训练精确率/召回率</th><th>留出精确率/召回率</th><th>阈值</th><th>状态</th>
             </tr></thead>
             <tbody>{html_rows}</tbody>
           </table>
-          <h2>Window Diagnostics</h2>
+          <h2>窗口诊断</h2>
           <table border="1" cellspacing="0" cellpadding="6">
             <thead><tr>
-              <th>Window</th><th>Symbol</th><th>Split</th><th>Rows</th>
-              <th>Detected Event</th><th>Positive Sample</th><th>Status</th><th>Reason</th>
+              <th>窗口</th><th>币种</th><th>分组</th><th>K线数</th>
+              <th>检测到的事件</th><th>正样本时间</th><th>状态</th><th>原因</th>
             </tr></thead>
             <tbody>{diagnostic_rows}</tbody>
           </table>
@@ -1187,16 +1336,17 @@ def run(config: dict[str, Any], symbols: list[str], split: str) -> dict[str, Any
     output_dir = ensure_directory(DATA_ROOT / "processed" / "phase1")
     candidate_details = generate_label_candidates(config, symbols)
     window_diagnostics = _window_diagnostics(config, symbols)
-    window_diagnostics_path = output_dir / "window_diagnostics.csv"
-    pd.DataFrame(window_diagnostics).to_csv(window_diagnostics_path, index=False)
+    compat_window_diagnostics_path = output_dir / "window_diagnostics.csv"
+    pd.DataFrame(window_diagnostics).to_csv(compat_window_diagnostics_path, index=False)
     labels = _load_labels(config)
-    labels.to_csv(output_dir / "labels_used.csv", index=False)
+    compat_labels_path = output_dir / "labels_used.csv"
+    labels.to_csv(compat_labels_path, index=False)
     dataset = _build_dataset(config, symbols, labels) if not labels.empty else pd.DataFrame()
-    dataset_path = output_dir / "features.parquet"
+    compat_dataset_path = output_dir / "features.parquet"
     if not dataset.empty:
-        dataset.to_parquet(dataset_path, index=False)
+        dataset.to_parquet(compat_dataset_path, index=False)
     else:
-        pd.DataFrame().to_parquet(dataset_path, index=False)
+        pd.DataFrame().to_parquet(compat_dataset_path, index=False)
     results = [
         _evaluate_feature_set(dataset, feature_set)
         for feature_set in FEATURE_SETS
@@ -1214,6 +1364,24 @@ def run(config: dict[str, Any], symbols: list[str], split: str) -> dict[str, Any
         }
     )[:12]
     report_dir = ensure_directory(REPORT_ROOT / experiment_id)
+    phase1_artifact_dir = ensure_directory(report_dir / "phase1")
+    dataset_path = phase1_artifact_dir / "features.parquet"
+    labels_path = phase1_artifact_dir / "labels_used.csv"
+    window_diagnostics_path = phase1_artifact_dir / "window_diagnostics.csv"
+    candidate_path = phase1_artifact_dir / "candidates.csv"
+    pd.DataFrame(window_diagnostics).to_csv(window_diagnostics_path, index=False)
+    labels.to_csv(labels_path, index=False)
+    if not dataset.empty:
+        dataset.to_parquet(dataset_path, index=False)
+    else:
+        pd.DataFrame().to_parquet(dataset_path, index=False)
+    candidates = pd.read_csv(candidate_details["candidate_path"])
+    candidates.to_csv(candidate_path, index=False)
+    candidate_details = {
+        **candidate_details,
+        "candidate_path": str(candidate_path),
+        "compat_candidate_path": candidate_details["candidate_path"],
+    }
     payload = {
         "experiment_id": experiment_id,
         "name": "phase1_prediction",
@@ -1265,7 +1433,12 @@ def run(config: dict[str, Any], symbols: list[str], split: str) -> dict[str, Any
         **distribution,
         "window_diagnostics": window_diagnostics,
         "window_diagnostics_path": str(window_diagnostics_path),
+        "labels_used_path": str(labels_path),
         "dataset_path": str(dataset_path),
+        "phase1_artifact_dir": str(phase1_artifact_dir),
+        "compat_window_diagnostics_path": str(compat_window_diagnostics_path),
+        "compat_labels_used_path": str(compat_labels_path),
+        "compat_dataset_path": str(compat_dataset_path),
         **candidate_details,
     }
     markdown_path, html_path = _write_report(report_dir, payload)

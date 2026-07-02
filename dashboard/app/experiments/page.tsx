@@ -20,6 +20,11 @@ export default function ExperimentsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const experiments = localData ?? data;
 
+  function experimentDetailPath(row: Experiment) {
+    const id = encodeURIComponent(row.experiment_id);
+    return row.strategy === "PHASE1" ? `/phase1?experiment=${id}` : `/backtest?experiment=${id}`;
+  }
+
   function toggleExperiment(experimentId: string) {
     setSelectedExperimentIds((current) => {
       const next = new Set(current);
@@ -120,7 +125,7 @@ export default function ExperimentsPage() {
         ) : (
           <ExperimentTable
             data={experiments}
-            onRowClick={(row) => router.push(`/backtest?experiment=${encodeURIComponent(row.experiment_id)}`)}
+            onRowClick={(row) => router.push(experimentDetailPath(row))}
             editing={editing}
             selectedExperimentIds={selectedExperimentIds}
             onToggleExperiment={toggleExperiment}

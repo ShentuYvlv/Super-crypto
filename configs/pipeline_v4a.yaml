@@ -11,7 +11,7 @@ data:
   history_days:
     1m: 7
     5m: 21
-    15m: 220
+    15m: 320
     1h: 220
   market_snapshot_interval_sec: 60
   storage:
@@ -162,22 +162,22 @@ phase1_prediction:
       label_quality: A
       source: yaml_window_auto_detect
       note: Replace with the real STO manipulation window from the article seed set.
-    - window_id: velvet_seed_holdout_001
+    - window_id: velvet_seed_validation_001
       symbol: VELVETUSDT
-      split: holdout
+      split: validation
       start: "2026-05-30T00:00:00Z"
       end: "2026-07-01T00:00:00Z"
       label_quality: A
       source: yaml_window_auto_detect
-      note: VELVET holdout manipulation window.
-    - window_id: lab_seed_holdout_001
+      note: VELVET validation manipulation window.
+    - window_id: lab_seed_validation_001
       symbol: LABUSDT
-      split: holdout
+      split: validation
       start: "2026-04-25T00:00:00Z"
       end: "2026-07-01T00:00:00Z"
       label_quality: A
       source: yaml_window_auto_detect
-      note: LAB holdout manipulation window.
+      note: LAB validation manipulation window.
     - window_id: rave_seed_holdout_001
       symbol: RAVEUSDT
       split: holdout
@@ -186,6 +186,54 @@ phase1_prediction:
       label_quality: A
       source: yaml_window_auto_detect
       note: RAVE holdout manipulation window.
+    - window_id: tac_seed_train_001
+      symbol: TACUSDT
+      split: train
+      start: "2026-06-01T00:00:00Z"
+      end: "2026-07-02T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: TAC train manipulation window.
+    - window_id: bsb_seed_train_001
+      symbol: BSBUSDT
+      split: train
+      start: "2026-04-01T00:00:00Z"
+      end: "2026-06-01T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: BSB train manipulation window.
+    - window_id: myx_seed_train_001
+      symbol: MYXUSDT
+      split: train
+      start: "2025-09-01T00:00:00Z"
+      end: "2025-11-01T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: MYX train manipulation window.
+    - window_id: coai_seed_holdout_001
+      symbol: COAIUSDT
+      split: holdout
+      start: "2025-10-01T00:00:00Z"
+      end: "2025-11-01T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: COAI holdout manipulation window.
+    - window_id: skyai_seed_train_001
+      symbol: SKYAIUSDT
+      split: train
+      start: "2026-04-01T00:00:00Z"
+      end: "2026-06-01T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: SKYAI train manipulation window.
+    - window_id: pippin_seed_train_001
+      symbol: PIPPINUSDT
+      split: train
+      start: "2025-11-01T00:00:00Z"
+      end: "2026-04-01T00:00:00Z"
+      label_quality: A
+      source: yaml_window_auto_detect
+      note: PIPPIN train manipulation window.
 
   negative_sample_ratio: 5
   negative_gap_hours: 48

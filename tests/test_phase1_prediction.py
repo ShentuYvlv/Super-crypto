@@ -111,7 +111,14 @@ def test_phase1_runs_f1_experiment_when_labels_exist(tmp_path, monkeypatch):
     assert experiment["sample_count"] >= 2
     assert experiment["phase1_results"]
     assert (tmp_path / "processed" / "phase1" / "features.parquet").exists()
-    assert (tmp_path / "reports" / experiment["experiment_id"] / "report.md").exists()
+    report_dir = tmp_path / "reports" / experiment["experiment_id"]
+    assert (report_dir / "report.md").exists()
+    assert (report_dir / "phase1" / "features.parquet").exists()
+    assert (report_dir / "phase1" / "labels_used.csv").exists()
+    assert (report_dir / "phase1" / "window_diagnostics.csv").exists()
+    assert (report_dir / "phase1" / "candidates.csv").exists()
+    assert experiment["dataset_path"] == str(report_dir / "phase1" / "features.parquet")
+    assert experiment["labels_used_path"] == str(report_dir / "phase1" / "labels_used.csv")
 
 
 def test_phase1_auto_detects_yaml_windows_and_splits_train_holdout(tmp_path, monkeypatch):
@@ -202,9 +209,10 @@ def test_phase1_reports_window_coverage_and_positive_sample_gaps(tmp_path, monke
     assert experiment["positive_sample_count"] == 0
     assert experiment["train_positive_count"] == 0
     assert set(diagnostics["status"]) == {"missing_positive_sample", "window_not_covered"}
-    assert "Window Diagnostics" in markdown
-    assert "missing_positive_sample" in markdown
-    assert "window_not_covered" in markdown
+    assert {"peak_time", "dump_end", "detection_rule"}.issubset(diagnostics.columns)
+    assert "窗口诊断" in markdown
+    assert "缺少前置正样本" in markdown
+    assert "窗口未被本地K线覆盖" in markdown
 
 
 def test_phase1_uses_event_window_symbols_instead_of_fallback_symbols(tmp_path, monkeypatch):

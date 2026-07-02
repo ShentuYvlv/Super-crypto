@@ -103,6 +103,9 @@ export type Phase1WindowDiagnostic = {
   data_end?: string | null;
   window_rows: number;
   detected_event_start?: string | null;
+  peak_time?: string | null;
+  dump_end?: string | null;
+  detection_rule?: string | null;
   positive_sample_time?: string | null;
   has_positive_sample?: boolean;
   status: string;
@@ -122,6 +125,102 @@ export type Phase1Diagnostics = {
   train_positive_count: number;
   holdout_positive_count: number;
   phase1_results: Array<Record<string, unknown>>;
+};
+
+export type Phase1ExperimentSummary = {
+  experiment_id: string;
+  status: string;
+  created_at?: string;
+  label_count: number;
+  sample_count: number;
+  positive_sample_count: number;
+  negative_sample_count: number;
+  train_sample_count: number;
+  train_positive_count: number;
+  holdout_sample_count: number;
+  holdout_positive_count: number;
+  train_f1: number;
+  holdout_f1: number;
+  holdout_precision: number;
+  holdout_recall: number;
+  best_train_experiment?: string | null;
+  best_holdout_experiment?: string | null;
+  lightgbm_holdout_f1?: number | null;
+};
+
+export type Phase1SplitSummary = {
+  split: string;
+  symbols: string[];
+  symbol_count: number;
+  label_count: number;
+  sample_count: number;
+  positive_sample_count: number;
+  negative_sample_count: number;
+};
+
+export type Phase1FeatureQuality = {
+  key: string;
+  label: string;
+  status: string;
+  available_columns: string[];
+  nonzero_sample_count: number;
+  sample_count: number;
+  missing_ratio: number;
+  quality_counts: Record<string, number>;
+};
+
+export type Phase1ModelResult = {
+  experiment: string;
+  model: string;
+  status: string;
+  train_f1?: number;
+  train_precision?: number;
+  train_recall?: number;
+  train_auc?: number;
+  holdout_f1?: number;
+  holdout_precision?: number;
+  holdout_recall?: number;
+  holdout_auc?: number;
+  threshold?: number;
+  train_sample_count?: number;
+  holdout_sample_count?: number;
+  train_positive_count?: number;
+  holdout_positive_count?: number;
+  features?: string[];
+  missing_features?: string[];
+};
+
+export type Phase1ConclusionFlag = {
+  key: string;
+  severity: "warning" | "danger" | "info" | string;
+  label: string;
+  detail: string;
+  experiments?: string[];
+};
+
+export type Phase1ExperimentDetail = {
+  experiment: Experiment;
+  summary: Phase1ExperimentSummary;
+  splits: Phase1SplitSummary[];
+  windows: Phase1WindowDiagnostic[];
+  labels: Array<Record<string, unknown>>;
+  samples: Array<Record<string, unknown>>;
+  sample_limit: number;
+  sample_count: number;
+  candidates: Array<Record<string, unknown>>;
+  feature_quality: Phase1FeatureQuality[];
+  model_results: Phase1ModelResult[];
+  conclusion_flags: Phase1ConclusionFlag[];
+  report_urls: {
+    html?: string | null;
+    markdown?: string | null;
+  };
+  artifact_paths: {
+    dataset?: string | null;
+    labels?: string | null;
+    windows?: string | null;
+    candidates?: string | null;
+  };
 };
 
 export type Experiment = {

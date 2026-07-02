@@ -8,6 +8,7 @@ from super_crypto.report_api import (
     data_quality,
     experiments,
     overview,
+    phase1,
     pipeline,
     reports,
     signals,
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
     app.include_router(overview.router)
     app.include_router(pipeline.router)
     app.include_router(experiments.router)
+    app.include_router(phase1.router)
     app.include_router(autoresearch.router)
     app.include_router(signals.router)
     app.include_router(trades.router)
