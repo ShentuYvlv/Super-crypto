@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,16 @@ class DeleteCycleResearchRunsRequest(BaseModel):
     run_ids: list[str] = Field(min_length=1, max_length=200)
 
 
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _json_safe(nested_value) for key, nested_value in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 def _read_table(path: str | None, *, limit: int = 1000) -> list[dict[str, Any]]:
     if not path:
         return []
@@ -36,7 +47,8 @@ def _read_table(path: str | None, *, limit: int = 1000) -> list[dict[str, Any]]:
     if not file_path.exists():
         return []
     frame = pd.read_parquet(file_path) if file_path.suffix == ".parquet" else pd.read_csv(file_path)
-    return frame.head(limit).where(pd.notna(frame), None).to_dict(orient="records")
+    rows = frame.head(limit).astype(object).where(pd.notna(frame), None).to_dict(orient="records")
+    return _json_safe(rows)
 
 
 def _read_yaml(path: str | None) -> dict[str, Any]:
@@ -79,18 +91,20 @@ def _cycle_run_detail(manifest: dict[str, Any]) -> dict[str, Any]:
                 "median_dump_return": float(pd.to_numeric(group["dump_return"]).median()),
                 "median_duration_hours": float(pd.to_numeric(group["duration_hours"]).median()),
             }
-    return {
-        **manifest,
-        "best_rule": best_rule,
-        "cycles": cycles,
-        "cycle_count": len(cycles),
-        "cycles_by_symbol_summary": sorted(
-            by_symbol.values(),
-            key=lambda item: item["cycle_count"],
-            reverse=True,
-        ),
-        "candidate_scores": candidate_scores,
-    }
+    return _json_safe(
+        {
+            **manifest,
+            "best_rule": best_rule,
+            "cycles": cycles,
+            "cycle_count": len(cycles),
+            "cycles_by_symbol_summary": sorted(
+                by_symbol.values(),
+                key=lambda item: item["cycle_count"],
+                reverse=True,
+            ),
+            "candidate_scores": candidate_scores,
+        }
+    )
 
 
 @router.get("/runs")

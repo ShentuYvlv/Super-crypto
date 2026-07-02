@@ -304,7 +304,7 @@ def test_autoresearch_api_returns_cycle_research_detail(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     scores_path.write_text(
-        "candidate_id,score,cycle_count\ncycle_01,0.82,3\n",
+        "candidate_id,score,cycle_count,rejection_reason\ncycle_01,0.82,3,\n",
         encoding="utf-8",
     )
     (run_dir / "manifest.json").write_text(
@@ -327,8 +327,19 @@ def test_autoresearch_api_returns_cycle_research_detail(tmp_path, monkeypatch):
     assert payload["cycle_count"] == 3
     assert payload["cycles"][0]["symbol"] == "RIVERUSDT"
     assert payload["candidate_scores"][0]["candidate_id"] == "cycle_01"
+    assert payload["candidate_scores"][0]["rejection_reason"] is None
     assert payload["cycles_by_symbol_summary"][0]["symbol"] == "RIVERUSDT"
     assert payload["cycles_by_symbol_summary"][0]["cycle_count"] == 2
+
+    monkeypatch.setattr(report_server, "ensure_dashboard_built", lambda: None)
+    monkeypatch.setattr(report_server, "DASHBOARD_OUT", tmp_path)
+    monkeypatch.setattr(report_server, "REPORT_ROOT", tmp_path)
+    http_response = TestClient(report_server.create_server_app()).get(
+        "/api/autoresearch/cycle-runs/cycle-a"
+    )
+
+    assert http_response.status_code == 200
+    assert http_response.json()["payload"]["candidate_scores"][0]["rejection_reason"] is None
 
 
 def test_autoresearch_artifacts_localize_english_recommendations(tmp_path, monkeypatch):
