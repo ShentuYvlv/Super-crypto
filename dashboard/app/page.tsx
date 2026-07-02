@@ -10,12 +10,27 @@ import { MetricCard } from "@/components/MetricCard";
 import { SignalReasonTags } from "@/components/SignalReasonTags";
 import { Card } from "@/components/ui/card";
 import { useApi } from "@/lib/api";
-import { displayStatus, displayText } from "@/lib/display";
+import { displayDateTime, displayStatus, displayText } from "@/lib/display";
 import type { OverviewPayload, SymbolSummary } from "@/types/api";
 
 const EMPTY_OVERVIEW: OverviewPayload = {
   latest_pipeline_run: null,
+  latest_research_run: null,
   latest_experiment: null,
+  latest_validation_experiment: null,
+  latest_holdout_experiment: null,
+  frozen_config: {
+    available: false,
+    path: null,
+    source_experiment_id: null,
+    created_at: null
+  },
+  holdout_status: {
+    run_count: 0,
+    has_result: false,
+    latest_experiment_id: null,
+    status: "not_run"
+  },
   today_signal_count: 0,
   active_monitored_symbols: 0,
   paper_pnl_7d: 0,
@@ -36,6 +51,11 @@ const EMPTY_OVERVIEW: OverviewPayload = {
 export default function OverviewPage() {
   const overview = useApi("/api/overview", EMPTY_OVERVIEW);
   const symbols = useApi<SymbolSummary[]>("/api/symbols", []);
+  const researchRun = overview.data.latest_research_run;
+  const validationExperiment = overview.data.latest_validation_experiment;
+  const holdoutExperiment = overview.data.latest_holdout_experiment;
+  const frozenConfig = overview.data.frozen_config ?? EMPTY_OVERVIEW.frozen_config;
+  const holdoutStatus = overview.data.holdout_status ?? EMPTY_OVERVIEW.holdout_status;
 
   if (overview.error && overview.data.latest_pipeline_run == null) {
     return <ErrorState title="总览接口不可用" description="请先启动报告服务或检查后端接口。" />;
@@ -44,6 +64,59 @@ export default function OverviewPage() {
   return (
     <div className="space-y-6">
       <h2 className="text-4xl font-semibold">总览</h2>
+      <div className="grid gap-4 xl:grid-cols-4">
+        <Card className="p-5 xl:col-span-2">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-2xl font-semibold">研究循环</h3>
+              <p className="mt-2 text-sm text-muted">
+                AutoResearch 是主流程；流水线和单次实验只是内部执行模块。
+              </p>
+            </div>
+            <span className="rounded-md border border-border px-2 py-1 text-xs text-muted">
+              {displayStatus(researchRun?.status ?? "idle")}
+            </span>
+          </div>
+          <div className="mt-5 grid gap-3 text-sm text-muted md:grid-cols-2">
+            <p>最新运行：{researchRun?.run_id ?? "-"}</p>
+            <p>完成时间：{displayDateTime(researchRun?.completed_at ?? researchRun?.created_at)}</p>
+            <p>轮数：{researchRun?.iterations.length ?? 0}</p>
+            <p>模型：{displayStatus(researchRun?.model_status.mode ?? "none")}</p>
+          </div>
+          <p className="mt-4 text-sm leading-6 text-muted">
+            {researchRun?.recommendation ?? "暂无研究循环建议。先运行 just research。"}
+          </p>
+        </Card>
+        <Card className="p-5">
+          <h3 className="text-2xl font-semibold">验证集结果</h3>
+          {validationExperiment ? (
+            <div className="mt-5 space-y-2 text-sm text-muted">
+              <p>状态：{displayStatus(validationExperiment.status)}</p>
+              <p>净收益：{(validationExperiment.metrics.net_return * 100).toFixed(2)}%</p>
+              <p>交易数：{validationExperiment.metrics.trade_count}</p>
+              <p>实验：{validationExperiment.experiment_id}</p>
+            </div>
+          ) : (
+            <EmptyState title="暂无验证集结果" description="先运行 just research 生成 validation 实验。" />
+          )}
+        </Card>
+        <Card className="p-5">
+          <h3 className="text-2xl font-semibold">最终留出集</h3>
+          <div className="mt-5 space-y-2 text-sm text-muted">
+            <p>冻结策略：{frozenConfig?.available ? "已生成" : "未生成"}</p>
+            <p>运行次数：{holdoutStatus?.run_count ?? 0}</p>
+            <p>状态：{displayStatus(holdoutStatus?.status ?? "not_run")}</p>
+            {holdoutExperiment ? (
+              <>
+                <p>净收益：{(holdoutExperiment.metrics.net_return * 100).toFixed(2)}%</p>
+                <p>交易数：{holdoutExperiment.metrics.trade_count}</p>
+              </>
+            ) : (
+              <p>准备最终验收时运行 just holdout。</p>
+            )}
+          </div>
+        </Card>
+      </div>
       <div className="grid gap-4 xl:grid-cols-6">
         <MetricCard label="今日信号" value={String(overview.data.today_signal_count)} sublabel="当前数据窗口" badge="实时" />
         <MetricCard label="跟踪标的" value={String(overview.data.active_monitored_symbols)} sublabel="信号活跃池" badge="标的池" />
@@ -63,7 +136,7 @@ export default function OverviewPage() {
         <MetricCard
           label="数据健康度"
           value={`${(overview.data.data_health_score * 100).toFixed(0)}%`}
-          sublabel="流水线可信度"
+          sublabel="数据与执行可信度"
           badge={overview.data.data_warnings.length ? "告警" : "健康"}
         />
       </div>
@@ -79,7 +152,7 @@ export default function OverviewPage() {
             </Link>
           </div>
           {symbols.data.length === 0 ? (
-            <EmptyState title="暂无标的快照" description="先跑流水线或扫描器，页面会自动读取最新 Parquet / SQLite 数据。" />
+            <EmptyState title="暂无标的快照" description="先运行 just research，页面会自动读取最新 Parquet / SQLite 数据。" />
           ) : (
             <div className="space-y-3">
               {symbols.data.slice(0, 8).map((row) => (
@@ -116,7 +189,7 @@ export default function OverviewPage() {
               </Card>
             ))}
             {overview.data.performance_snapshot.split_comparison.length === 0 ? (
-              <EmptyState title="暂无实验摘要" description="最新实验详情还没生成，先跑流水线。" />
+              <EmptyState title="暂无实验摘要" description="最新实验详情还没生成，先运行 just research。" />
             ) : null}
           </div>
         </Card>
@@ -170,7 +243,7 @@ export default function OverviewPage() {
       <Card className="p-5">
         <h3 className="text-2xl font-semibold">数据告警</h3>
         {overview.data.data_warnings.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">最新流水线没有关键告警。</p>
+          <p className="mt-3 text-sm text-muted">最新研究流程没有关键告警。</p>
         ) : (
           <div className="mt-4 space-y-3">
             {overview.data.data_warnings.map((warning) => (

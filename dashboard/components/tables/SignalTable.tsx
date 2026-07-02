@@ -48,10 +48,35 @@ const columns = [
 
 export function SignalTable({
   data,
-  onRowClick
+  onRowClick,
+  editing = false,
+  selectedSignalIds = new Set<string>(),
+  onToggleSignal
 }: {
   data: Signal[];
   onRowClick?: (row: Signal) => void;
+  editing?: boolean;
+  selectedSignalIds?: Set<string>;
+  onToggleSignal?: (signalId: string) => void;
 }) {
-  return <DataTable data={data} columns={columns} onRowClick={onRowClick} />;
+  const tableColumns = editing
+    ? [
+        columnHelper.display({
+          id: "selection",
+          header: "选择",
+          cell: ({ row }) => (
+            <input
+              type="checkbox"
+              checked={selectedSignalIds.has(row.original.signal_id)}
+              onChange={() => onToggleSignal?.(row.original.signal_id)}
+              onClick={(event) => event.stopPropagation()}
+              className="h-4 w-4 rounded border-border bg-canvas accent-accent"
+              aria-label={`选择信号 ${row.original.signal_id}`}
+            />
+          )
+        }),
+        ...columns
+      ]
+    : columns;
+  return <DataTable data={data} columns={tableColumns} onRowClick={editing ? undefined : onRowClick} />;
 }

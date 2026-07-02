@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from super_crypto.common.time import parse_timestamp
 from super_crypto.report_api.deps import envelope, experiment_store
@@ -14,6 +15,10 @@ from super_crypto.report_api.loaders import (
 )
 
 router = APIRouter(prefix="/api/signals", tags=["signals"])
+
+
+class DeleteSignalsRequest(BaseModel):
+    signal_ids: list[str] = Field(min_length=1, max_length=500)
 
 
 def _signal_kline_window(klines, signal_time: str, *, before: int = 120, after: int = 80):
@@ -39,6 +44,27 @@ def list_signals():
         reverse=True,
     )
     return envelope(payload)
+
+
+@router.delete("")
+def delete_signals(request: DeleteSignalsRequest):
+    store = experiment_store()
+    unique_ids = sorted(set(request.signal_ids))
+    existing_ids = {
+        signal["signal_id"]
+        for signal in store.list_payloads("signals")
+        if signal.get("signal_id") in unique_ids
+    }
+    if not existing_ids:
+        raise HTTPException(status_code=404, detail="No matching signals found")
+    deleted_counts = store.delete_signal_bundle(list(existing_ids))
+    return envelope(
+        {
+            "requested": len(unique_ids),
+            "deleted": deleted_counts,
+            "deleted_signal_ids": sorted(existing_ids),
+        }
+    )
 
 
 @router.get("/{signal_id}")

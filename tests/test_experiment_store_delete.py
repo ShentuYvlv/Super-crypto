@@ -68,6 +68,44 @@ def test_delete_experiment_bundle_removes_experiment_signals_without_trades(tmp_
     assert store.get_payload("signals", "signal_id", "signal-live") is not None
 
 
+def test_delete_signal_bundle_removes_related_backtest_and_paper_trades(tmp_path):
+    store = ExperimentStore(tmp_path / "experiments.db")
+    store.bulk_upsert(
+        "signals",
+        "signal_id",
+        [
+            {"signal_id": "signal-a"},
+            {"signal_id": "signal-b"},
+        ],
+    )
+    store.bulk_upsert(
+        "trades",
+        "trade_id",
+        [
+            {"trade_id": "trade-a", "signal_id": "signal-a"},
+            {"trade_id": "trade-b", "signal_id": "signal-b"},
+        ],
+    )
+    store.bulk_upsert(
+        "paper_trades",
+        "trade_id",
+        [
+            {"trade_id": "paper-a", "signal_id": "signal-a"},
+            {"trade_id": "paper-b", "signal_id": "signal-b"},
+        ],
+    )
+
+    deleted = store.delete_signal_bundle(["signal-a"])
+
+    assert deleted == {"signals": 1, "trades": 1, "paper_trades": 1}
+    assert store.get_payload("signals", "signal_id", "signal-a") is None
+    assert store.get_payload("trades", "trade_id", "trade-a") is None
+    assert store.get_payload("paper_trades", "trade_id", "paper-a") is None
+    assert store.get_payload("signals", "signal_id", "signal-b") is not None
+    assert store.get_payload("trades", "trade_id", "trade-b") is not None
+    assert store.get_payload("paper_trades", "trade_id", "paper-b") is not None
+
+
 def test_clear_autoresearch_runs_removes_only_research_metadata(tmp_path):
     store = ExperimentStore(tmp_path / "experiments.db")
     store.upsert(

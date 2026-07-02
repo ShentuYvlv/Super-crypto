@@ -37,6 +37,35 @@ class FakeStore:
         return []
 
 
+class FakeDeleteStore:
+    def list_payloads(self, table: str):
+        if table == "signals":
+            return [
+                {"signal_id": "signal-a"},
+                {"signal_id": "signal-b"},
+            ]
+        return []
+
+    def delete_signal_bundle(self, signal_ids: list[str]):
+        return {
+            "signals": len(signal_ids),
+            "trades": 1,
+            "paper_trades": 1,
+        }
+
+
+def test_delete_signals_removes_signal_bundle(monkeypatch):
+    monkeypatch.setattr(signals, "experiment_store", lambda: FakeDeleteStore())
+
+    response = signals.delete_signals(signals.DeleteSignalsRequest(signal_ids=["signal-a"]))
+
+    assert response["payload"] == {
+        "requested": 1,
+        "deleted": {"signals": 1, "trades": 1, "paper_trades": 1},
+        "deleted_signal_ids": ["signal-a"],
+    }
+
+
 def test_signal_detail_uses_kline_window_around_signal_not_latest_tail(monkeypatch):
     signal_start = datetime(2026, 6, 14, 0, tzinfo=UTC)
     latest_start = datetime(2026, 6, 25, 0, tzinfo=UTC)

@@ -131,6 +131,34 @@ class ExperimentStore:
             "signals": self.delete_payloads("signals", "signal_id", orphan_signal_ids),
         }
 
+    def delete_signal_bundle(self, signal_ids: list[str]) -> dict[str, int]:
+        unique_ids = sorted(set(signal_ids))
+        if not unique_ids:
+            return {"signals": 0, "trades": 0, "paper_trades": 0}
+        trades = [
+            trade
+            for trade in self.list_payloads("trades")
+            if trade.get("signal_id") in unique_ids
+        ]
+        paper_trades = [
+            trade
+            for trade in self.list_payloads("paper_trades")
+            if trade.get("signal_id") in unique_ids
+        ]
+        return {
+            "signals": self.delete_payloads("signals", "signal_id", unique_ids),
+            "trades": self.delete_payloads(
+                "trades",
+                "trade_id",
+                [trade["trade_id"] for trade in trades],
+            ),
+            "paper_trades": self.delete_payloads(
+                "paper_trades",
+                "trade_id",
+                [trade["trade_id"] for trade in paper_trades],
+            ),
+        }
+
     def clear_autoresearch_runs(self, run_ids: list[str]) -> int:
         unique_ids = set(run_ids)
         if not unique_ids:

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { KlinePanel } from "@/components/charts/KlinePanel";
@@ -43,29 +43,135 @@ function SignalsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const list = useApi<Signal[]>("/api/signals", []);
+  const [localData, setLocalData] = useState<Signal[] | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [selectedSignalIds, setSelectedSignalIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const signals = localData ?? list.data;
   const selectedId = useMemo(
-    () => searchParams.get("signal") ?? list.data[0]?.signal_id ?? "",
-    [list.data, searchParams]
+    () => searchParams.get("signal") ?? signals[0]?.signal_id ?? "",
+    [signals, searchParams]
   );
   const detail = useApi<SignalDetail>(
     selectedId ? `/api/signals/${encodeURIComponent(selectedId)}` : "/api/signals/__none__",
     EMPTY_DETAIL
   );
 
+  function toggleSignal(signalId: string) {
+    setSelectedSignalIds((current) => {
+      const next = new Set(current);
+      if (next.has(signalId)) {
+        next.delete(signalId);
+      } else {
+        next.add(signalId);
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedSignalIds(new Set());
+  }
+
+  async function deleteSelectedSignals() {
+    const signalIds = Array.from(selectedSignalIds);
+    if (signalIds.length === 0) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `确认删除 ${signalIds.length} 个信号？会同步删除关联回测交易和纸面交易。`
+    );
+    if (!confirmed) {
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch("/api/signals", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signal_ids: signalIds })
+      });
+      if (!response.ok) {
+        throw new Error(`delete_failed:${response.status}`);
+      }
+      const nextSignals = signals.filter((signal) => !selectedSignalIds.has(signal.signal_id));
+      setLocalData(nextSignals);
+      clearSelection();
+      if (selectedId && selectedSignalIds.has(selectedId)) {
+        const nextSelectedId = nextSignals[0]?.signal_id;
+        router.push(nextSelectedId ? `/signals?signal=${encodeURIComponent(nextSelectedId)}` : "/signals");
+      }
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "delete_failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-4xl font-semibold">信号</h2>
-        <p className="mt-2 text-sm text-muted">置信度是结构化评分，不是收益承诺。</p>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <h2 className="text-4xl font-semibold">信号</h2>
+          <p className="mt-2 text-sm text-muted">置信度是结构化评分，不是收益承诺。</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {editing ? (
+            <>
+              <button
+                className="rounded border border-border bg-surface2 px-3 py-2 text-sm text-text hover:bg-border"
+                onClick={() => setSelectedSignalIds(new Set(signals.map((item) => item.signal_id)))}
+              >
+                全选
+              </button>
+              <button
+                className="rounded border border-border bg-surface2 px-3 py-2 text-sm text-text hover:bg-border"
+                onClick={clearSelection}
+              >
+                清空
+              </button>
+              <button
+                className="rounded bg-negative px-3 py-2 text-sm text-white hover:bg-negative/80 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={deleteSelectedSignals}
+                disabled={selectedSignalIds.size === 0 || deleting}
+              >
+                {deleting ? "删除中..." : `删除所选 ${selectedSignalIds.size}`}
+              </button>
+            </>
+          ) : null}
+          <button
+            className="rounded bg-accent px-3 py-2 text-sm font-medium text-black hover:bg-accent/90"
+            onClick={() => {
+              setEditing((value) => !value);
+              clearSelection();
+              setDeleteError(null);
+            }}
+          >
+            {editing ? "完成" : "编辑"}
+          </button>
+        </div>
       </div>
       <Card className="p-5">
-        {list.data.length === 0 ? (
+        {deleteError ? (
+          <div className="mb-4 rounded-lg border border-negative/40 bg-negative/10 p-3 text-sm text-negative">
+            删除失败：{deleteError}
+          </div>
+        ) : null}
+        {signals.length === 0 ? (
           <EmptyState title="暂无信号" description="当前没有落库信号，这说明系统没有强行凑信号。" />
         ) : (
-          <SignalTable data={list.data} onRowClick={(row) => router.push(`/signals?signal=${encodeURIComponent(row.signal_id)}`)} />
+          <SignalTable
+            data={signals}
+            onRowClick={(row) => router.push(`/signals?signal=${encodeURIComponent(row.signal_id)}`)}
+            editing={editing}
+            selectedSignalIds={selectedSignalIds}
+            onToggleSignal={toggleSignal}
+          />
         )}
       </Card>
-      {selectedId ? (
+      {selectedId && signals.some((signal) => signal.signal_id === selectedId) ? (
         <>
           <div className="grid gap-4 lg:grid-cols-4">
             <Card className="p-4">

@@ -386,7 +386,22 @@ export type CycleResearchRun = {
 
 export type OverviewPayload = {
   latest_pipeline_run?: PipelineRun | null;
+  latest_research_run?: AutoResearchRun | null;
   latest_experiment?: Experiment | null;
+  latest_validation_experiment?: Experiment | null;
+  latest_holdout_experiment?: Experiment | null;
+  frozen_config?: {
+    available: boolean;
+    path?: string | null;
+    source_experiment_id?: string | null;
+    created_at?: string | null;
+  };
+  holdout_status?: {
+    run_count: number;
+    has_result: boolean;
+    latest_experiment_id?: string | null;
+    status: string;
+  };
   today_signal_count: number;
   active_monitored_symbols: number;
   paper_pnl_7d: number;

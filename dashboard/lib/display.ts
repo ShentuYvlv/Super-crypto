@@ -39,6 +39,7 @@ const STATUS_LABELS: Record<string, string> = {
   available: "可用",
   unavailable: "不可用",
   configured: "已配置",
+  not_run: "未运行",
   no_signal: "无信号",
   rules_fallback: "规则兜底",
   llm: "大模型",
