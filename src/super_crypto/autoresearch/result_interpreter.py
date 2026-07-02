@@ -28,7 +28,10 @@ def summarize_trades(validation_result: dict[str, Any] | None = None) -> dict[st
         return {"trade_count": 0, "symbols": [], "exit_reasons": {}, "net_return_by_symbol": {}}
     symbol_column = "symbol" if "symbol" in frame else None
     exit_reasons = (
-        {str(key): int(value) for key, value in frame["exit_reason"].value_counts().head(5).to_dict().items()}
+        {
+            str(key): int(value)
+            for key, value in frame["exit_reason"].value_counts().head(5).to_dict().items()
+        }
         if "exit_reason" in frame
         else {}
     )

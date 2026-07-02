@@ -43,7 +43,10 @@ def _trade_count(metrics: dict | None) -> int:
 
 
 def _latest_split_experiment(experiments: list[dict], split: str) -> dict | None:
-    return next((experiment for experiment in experiments if experiment.get("split") == split), None)
+    return next(
+        (experiment for experiment in experiments if experiment.get("split") == split),
+        None,
+    )
 
 
 def _latest_frozen_config_status(experiments: list[dict]) -> dict:
@@ -155,7 +158,11 @@ def get_overview():
                 if latest_holdout_experiment
                 else None
             ),
-            "status": latest_holdout_experiment.get("status") if latest_holdout_experiment else "not_run",
+            "status": (
+                latest_holdout_experiment.get("status")
+                if latest_holdout_experiment
+                else "not_run"
+            ),
         },
         "today_signal_count": len(signals),
         "active_monitored_symbols": len({signal["symbol"] for signal in signals}),

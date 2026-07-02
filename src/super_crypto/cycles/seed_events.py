@@ -127,7 +127,9 @@ def build_event_set(
     seed_config = load_yaml(seed_events_config_path)
     cycle_config = load_yaml(cycle_config_path)
     cycles = _load_cycle_frame(cycles_dir)
-    seed_events = [_normalize_seed_event(item) for item in seed_config.get("manual_seed_events", [])]
+    seed_events = [
+        _normalize_seed_event(item) for item in seed_config.get("manual_seed_events", [])
+    ]
     matched_seed_events = _match_seed_events(
         cycles,
         seed_events,
@@ -144,10 +146,19 @@ def build_event_set(
     if cycles.empty:
         expanded = cycles
     else:
+        pump_min = float(
+            commonality.get("pump_return_min", cycle_config["pump_threshold_min"])
+        )
+        pump_max = float(
+            commonality.get("pump_return_max", cycle_config["pump_threshold_max"])
+        )
+        duration_max = float(
+            commonality.get("duration_hours_max", cycle_config["max_cycle_hours"])
+        )
         expanded = cycles[
-            (cycles["pump_return"] >= float(commonality.get("pump_return_min", cycle_config["pump_threshold_min"])))
-            & (cycles["pump_return"] <= float(commonality.get("pump_return_max", cycle_config["pump_threshold_max"])))
-            & (cycles["duration_hours"] <= float(commonality.get("duration_hours_max", cycle_config["max_cycle_hours"])))
+            (cycles["pump_return"] >= pump_min)
+            & (cycles["pump_return"] <= pump_max)
+            & (cycles["duration_hours"] <= duration_max)
         ].copy()
         expanded["event_set_version"] = seed_config.get("version", "seed_events_v1")
         expanded["commonality_source"] = commonality["source"]
@@ -166,7 +177,9 @@ def build_event_set(
         "seed_event_count": len(seed_events),
         "matched_seed_event_count": len(matched_seed_events),
         "expanded_event_count": int(len(expanded)),
-        "expanded_symbols": sorted(expanded["symbol"].unique().tolist()) if not expanded.empty else [],
+        "expanded_symbols": (
+            sorted(expanded["symbol"].unique().tolist()) if not expanded.empty else []
+        ),
         "commonality_profile": commonality,
         "manual_seed_events": seed_events,
         "matched_seed_events": matched_seed_events,

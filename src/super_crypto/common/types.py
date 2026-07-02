@@ -39,13 +39,19 @@ class MarketSnapshot(BaseModel):
 class CycleRecord(BaseModel):
     cycle_id: str
     symbol: str
+    timeframe: str | None = None
     pump_start: datetime
     peak_time: datetime
     dump_end: datetime
     pump_return: float
     dump_return: float
+    pump_duration_hours: float = 0.0
+    dump_duration_hours: float = 0.0
     duration_hours: float
-    score_context: dict[str, float] = Field(default_factory=dict)
+    rule_id: str = ""
+    quality_score: float = 0.0
+    detection_rule: str = ""
+    score_context: dict[str, Any] = Field(default_factory=dict)
 
 
 class ScoreRecord(BaseModel):

@@ -7,6 +7,7 @@ import typer
 import yaml
 
 from super_crypto.autoresearch.agent_loop import run_loop
+from super_crypto.autoresearch.cycle_research import run_cycle_research
 from super_crypto.common.config import load_yaml
 from super_crypto.common.config_symbols import data_config_with_resolved_symbols
 from super_crypto.common.logging import configure_logging
@@ -201,6 +202,34 @@ def research(
 ) -> None:
     """Run the main AutoResearch loop."""
     _echo_research_result(_run_research(config, autoresearch_config, max_runs, no_llm))
+
+
+@app.command("cycle-research")
+def cycle_research(
+    config: str = typer.Option("configs/cycle_discovery.yaml", "--config"),
+    autoresearch_config: str = typer.Option("configs/autoresearch.yaml", "--autoresearch-config"),
+    max_runs: int | None = typer.Option(None, "--max-runs", min=1),
+    no_llm: bool = typer.Option(False, "--no-llm"),
+    apply_best: bool = typer.Option(False, "--apply-best"),
+) -> None:
+    """Run the LLM-guided manipulation-cycle discovery loop."""
+    result = run_cycle_research(
+        config,
+        autoresearch_config_path=autoresearch_config,
+        max_runs=max_runs,
+        use_llm=not no_llm,
+        apply_best=apply_best,
+    )
+    typer.echo(f"CycleResearch run_id: {result['run_id']}")
+    typer.echo(f"status: {result['status']}")
+    typer.echo(f"model_mode: {result['model_status']['mode']}")
+    typer.echo(f"iterations: {result['iteration_count']}")
+    typer.echo(f"candidates: {result['candidate_count']}")
+    typer.echo(f"best_candidate: {result['best_candidate_id']}")
+    typer.echo(f"best_score: {(result.get('best_quality') or {}).get('score')}")
+    typer.echo(f"best_rule: {result.get('best_rule_path')}")
+    typer.echo(f"cycles: {result.get('best_cycles_csv_path')}")
+    typer.echo(f"manifest: {result['manifest_path']}")
 
 
 @app.command()

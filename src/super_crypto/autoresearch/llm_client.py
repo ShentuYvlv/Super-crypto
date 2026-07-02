@@ -32,7 +32,7 @@ class AutoResearchLLMClient:
     timeout_sec: float = 60.0
 
     @classmethod
-    def from_env(cls) -> "AutoResearchLLMClient | None":
+    def from_env(cls) -> AutoResearchLLMClient | None:
         load_dotenv(PROJECT_ROOT / ".env", override=False)
         base_url = os.environ.get("LLM_BASE_URL", "").rstrip("/")
         api_key = os.environ.get("LLM_API_KEY", "")

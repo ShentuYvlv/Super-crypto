@@ -10,4 +10,5 @@ allowed_config_files:
   - configs/experiment_v4b_full.yaml
 allowed_pipeline_config_files:
   - configs/pipeline_v4a.yaml
+  - configs/cycle_discovery.yaml
 protected_files: configs/protected_files.yaml

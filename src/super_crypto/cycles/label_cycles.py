@@ -15,12 +15,18 @@ def _empty_cycle_frame() -> pl.DataFrame:
         schema={
             "cycle_id": pl.String,
             "symbol": pl.String,
+            "timeframe": pl.String,
             "pump_start": pl.Datetime(time_zone="UTC"),
             "peak_time": pl.Datetime(time_zone="UTC"),
             "dump_end": pl.Datetime(time_zone="UTC"),
             "pump_return": pl.Float64,
             "dump_return": pl.Float64,
+            "pump_duration_hours": pl.Float64,
+            "dump_duration_hours": pl.Float64,
             "duration_hours": pl.Float64,
+            "rule_id": pl.String,
+            "quality_score": pl.Float64,
+            "detection_rule": pl.String,
             "score_context": pl.String,
         }
     )

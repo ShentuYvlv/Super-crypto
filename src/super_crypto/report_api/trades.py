@@ -50,7 +50,12 @@ def _trade_marker(payload: dict) -> dict:
     }
 
 
-def _trade_kline_window(klines: pd.DataFrame, payload: dict, *, context_hours: int = 72) -> pd.DataFrame:
+def _trade_kline_window(
+    klines: pd.DataFrame,
+    payload: dict,
+    *,
+    context_hours: int = 72,
+) -> pd.DataFrame:
     if klines.empty or "open_time" not in klines:
         return klines
     frame = klines.copy()

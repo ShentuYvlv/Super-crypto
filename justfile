@@ -16,6 +16,9 @@ dev-test:
 dev-pipeline config="configs/pipeline_v4a.yaml" split="train_validation":
   BINANCE_TRUST_ENV=1 uv run python -m super_crypto.cli pipeline --config {{config}} --split {{split}}
 
+dev-cycle-research config="configs/cycle_discovery.yaml":
+  BINANCE_TRUST_ENV=1 uv run python -m super_crypto.cli cycle-research --config {{config}}
+
 dev-experiment config="configs/experiment_v4a_full.yaml" split="validation":
   BINANCE_TRUST_ENV=1 uv run python -m super_crypto.cli run --config {{config}} --split {{split}}
 

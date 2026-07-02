@@ -53,9 +53,17 @@ def _source_row(
     notes: list[str] | None = None,
 ) -> dict:
     exists = path.exists()
-    file_count = 1 if exists and path.is_file() else len(list(path.glob("*.parquet"))) if exists else 0
+    if exists and path.is_file():
+        file_count = 1
+    elif exists:
+        file_count = len(list(path.glob("*.parquet")))
+    else:
+        file_count = 0
     latest_mtime = path.stat().st_mtime if exists and path.is_file() else None
-    latest_timestamp = _latest_timestamp(frame if frame is not None else pd.DataFrame(), timestamp_columns)
+    latest_timestamp = _latest_timestamp(
+        frame if frame is not None else pd.DataFrame(),
+        timestamp_columns,
+    )
     status = "healthy" if file_count else "partial"
     row_notes = notes or []
     if frame is not None and frame.empty:

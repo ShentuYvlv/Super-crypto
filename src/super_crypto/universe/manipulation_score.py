@@ -52,7 +52,9 @@ def score_symbols(
             elif "open_interest" in deriv.columns and len(deriv) > 24:
                 oi_momentum = float(deriv["open_interest"].pct_change(24).fillna(0.0).iloc[-1])
             if "funding_rate" in deriv.columns:
-                funding_extremes = float(deriv["funding_rate"].abs().iloc[-1]) if not deriv.empty else 0.0
+                funding_extremes = (
+                    float(deriv["funding_rate"].abs().iloc[-1]) if not deriv.empty else 0.0
+                )
         data_completeness = 1.0 if deriv is not None and not deriv.empty else 0.8
         score = (
             cycle_count * config["weights"]["cycle_frequency"] * 10
